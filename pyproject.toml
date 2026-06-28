@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "studybuddy"
+version = "0.0.0"
+description = "A personal-first adaptive study system. Deterministic pipeline scopes and drives Claude as the semantic engine."
+requires-python = ">=3.11"
+dependencies = [
+    "anthropic>=0.40",
+    "pydantic>=2",
+    "python-ulid>=2",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[project.scripts]
+studybuddy = "studybuddy.cli:main"
+
+[tool.setuptools]
+packages = ["studybuddy"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
