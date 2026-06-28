@@ -33,7 +33,8 @@
     ],
     "properties": {
       "score": {
-        "type": "number"
+        "type": "number",
+        "minimum": 0
       },
       "reasoning": {
         "type": "string"

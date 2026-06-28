@@ -42,6 +42,10 @@ class ClaudeCallError(Exception):
     """The API call failed (transport/auth) and could not produce any output."""
 
 
+class InputValidationError(ClaudeCallError):
+    """The structured input did not conform to the call's input_schema (caught before spend)."""
+
+
 class OutputValidationError(ClaudeCallError):
     """Claude's output was not valid JSON or failed schema validation after the retry."""
 
@@ -86,6 +90,13 @@ def _text_of(response: Any) -> str:
     return "".join(parts)
 
 
+def _correction(prior_error: Exception | None) -> str:
+    return (
+        f"That response was not valid: {prior_error}. "
+        "Return ONLY a single JSON value conforming to the schema — no prose, no code fences."
+    )
+
+
 def _call_api(
     client: Any,
     model: str,
@@ -95,22 +106,17 @@ def _call_api(
     prior_raw: str | None,
     prior_error: Exception | None,
 ) -> str:
-    messages: list[dict[str, Any]] = [
-        {"role": "user", "content": _user_content(template, structured_input)}
-    ]
-    if prior_raw is not None:
-        # Show Claude its rejected output and ask for a corrected, schema-valid response.
-        messages.append({"role": "assistant", "content": prior_raw})
-        messages.append(
-            {
-                "role": "user",
-                "content": (
-                    f"That response was not valid: {prior_error}. "
-                    "Return ONLY a single JSON value conforming to the schema — "
-                    "no prose, no code fences."
-                ),
-            }
-        )
+    user = _user_content(template, structured_input)
+    messages: list[dict[str, Any]] = [{"role": "user", "content": user}]
+    if prior_error is not None:
+        # This is a retry. Show Claude its rejected output only if it is non-empty — the API
+        # rejects empty/whitespace assistant content — otherwise fold the correction into the
+        # single user turn so we never send an invalid empty assistant message.
+        if prior_raw is not None and prior_raw.strip():
+            messages.append({"role": "assistant", "content": prior_raw})
+            messages.append({"role": "user", "content": _correction(prior_error)})
+        else:
+            messages = [{"role": "user", "content": user + "\n\n" + _correction(prior_error)}]
     response = client.messages.create(
         model=model,
         max_tokens=max_tokens,
@@ -124,60 +130,74 @@ def _call_api(
 # Output parsing + validation
 # --------------------------------------------------------------------------------------
 
-_FENCE = re.compile(r"```(?:json)?\s*(.*?)```", re.DOTALL)
+_FENCE = re.compile(r"```(?:json)?\s*(.*?)```", re.DOTALL | re.IGNORECASE)
 
 
-def _first_json_span(text: str) -> str | None:
-    """Return the first balanced {...} or [...] span, ignoring brackets inside strings."""
-    start = None
-    for i, ch in enumerate(text):
-        if ch in "{[":
-            start = i
-            open_ch, close_ch = ch, ("}" if ch == "{" else "]")
-            break
-    if start is None:
-        return None
+def _matching_close(text: str, start: int, open_ch: str, close_ch: str) -> int | None:
+    """Index of the bracket that closes the one at ``start``, ignoring brackets in strings."""
     depth = 0
     in_str = False
     escape = False
-    for i in range(start, len(text)):
-        ch = text[i]
+    for j in range(start, len(text)):
+        c = text[j]
         if in_str:
             if escape:
                 escape = False
-            elif ch == "\\":
+            elif c == "\\":
                 escape = True
-            elif ch == '"':
+            elif c == '"':
                 in_str = False
             continue
-        if ch == '"':
+        if c == '"':
             in_str = True
-        elif ch == open_ch:
+        elif c == open_ch:
             depth += 1
-        elif ch == close_ch:
+        elif c == close_ch:
             depth -= 1
             if depth == 0:
-                return text[start : i + 1]
+                return j
     return None
 
 
+def _iter_json_spans(text: str):
+    """Yield each balanced {...} / [...] span in order, skipping brackets inside strings."""
+    i = 0
+    while i < len(text):
+        ch = text[i]
+        if ch in "{[":
+            end = _matching_close(text, i, ch, "}" if ch == "{" else "]")
+            if end is not None:
+                yield text[i : end + 1]
+                i = end + 1
+                continue
+        i += 1
+
+
 def _extract_json(raw: str) -> Any:
-    """Tolerantly extract a JSON value from raw model text."""
+    """Tolerantly extract a JSON value from raw model text.
+
+    Tries, in order: the whole string, then each code-fenced block, then each balanced
+    bracket span. The model is told to emit bare JSON, but real outputs sometimes add a
+    fence or surrounding prose, so we try every candidate rather than commit to the first.
+    """
     raw = raw.strip()
+    if not raw:
+        raise json.JSONDecodeError("empty output", "", 0)
     try:
         return json.loads(raw)
     except json.JSONDecodeError:
         pass
-    fenced = _FENCE.search(raw)
-    if fenced:
+    for match in _FENCE.finditer(raw):
         try:
-            return json.loads(fenced.group(1).strip())
+            return json.loads(match.group(1).strip())
         except json.JSONDecodeError:
-            pass
-    span = _first_json_span(raw)
-    if span is not None:
-        return json.loads(span)  # may raise JSONDecodeError -> caught by caller
-    raise json.JSONDecodeError("no JSON value found in output", raw or "", 0)
+            continue
+    for span in _iter_json_spans(raw):
+        try:
+            return json.loads(span)
+        except json.JSONDecodeError:
+            continue
+    raise json.JSONDecodeError("no JSON value found in output", raw, 0)
 
 
 def _parse_and_validate(raw: str, output_schema: dict[str, Any]) -> Any:
@@ -243,6 +263,16 @@ def run_call(
     model = model or _default_model()
     phase = phase or template.task.value
 
+    # Validate the orchestrator's structured input against the call's input_schema before any
+    # API spend. Input is owned by deterministic code, so a failure is a hard error with no
+    # retry (decision A1): fail fast, do not call Claude, do not write a run-log entry.
+    try:
+        jsonschema.validate(structured_input, template.input_schema)
+    except jsonschema.ValidationError as e:
+        raise InputValidationError(
+            f"input to {phase} failed its input_schema: {e.message}"
+        ) from e
+
     run_id = ids.ulid_id("run")
     input_ref = runlog.write_blob(run_id, "in", structured_input)
 
@@ -261,10 +291,16 @@ def run_call(
                 break
             except OutputValidationError as e:
                 val_error = e
-    except Exception as api_err:  # API/transport failure: log, then raise.
+    except Exception as api_err:  # API/transport failure: log (keeping any prior output), raise.
+        raw_output_ref = None
+        if raw is not None:  # a malformed earlier attempt still produced output worth keeping
+            try:
+                raw_output_ref = runlog.write_blob(run_id, "out", raw)
+            except Exception:
+                raw_output_ref = None  # never let a blob-write mask the original API error
         runlog.append(
             _make_entry(
-                run_id, phase, template, input_ref, None,
+                run_id, phase, template, input_ref, raw_output_ref,
                 ValidationStatus.malformed, Disposition.rejected,
             )
         )

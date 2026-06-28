@@ -69,6 +69,12 @@ def test_force_regenerates(tmp_path):
     assert json.loads(edited.read_text())["body"] != "HAND EDITED"
 
 
+def test_grade_response_score_has_floor(tmp_path):
+    _seed(tmp_path)
+    tmpl = registry.load_template("grade_response", root=tmp_path)
+    assert tmpl.output_schema["properties"]["score"]["minimum"] == 0
+
+
 def test_wrapper_runs_against_seeded_template(tmp_path, fake_client):
     """End-to-end through the real seeded grade_response schema (mocked client)."""
     _seed(tmp_path)

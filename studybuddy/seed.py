@@ -272,7 +272,9 @@ def _templates() -> list[PromptTemplate]:
                 "type": "object",
                 "required": ["score", "reasoning", "missed_facets"],
                 "properties": {
-                    "score": {"type": "number"},
+                    # Floor only; the per-rubric ceiling (grading_spec.max_score) is a runtime
+                    # value, clamped by the deterministic grading step in Stage 5 (Phase 1).
+                    "score": {"type": "number", "minimum": 0},
                     "reasoning": {"type": "string"},
                     "missed_facets": {"type": "array", "items": {"type": "string"}},
                 },

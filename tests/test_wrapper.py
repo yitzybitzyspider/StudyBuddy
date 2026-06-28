@@ -141,3 +141,74 @@ def test_phase_override_recorded(kroot, fake_client):
     client = fake_client(outputs=['{"topics": []}'])
     wrapper.run_call("extract_structure", {}, root=kroot, client=client, phase="Stage 1")
     assert RunLog(kroot).read_all()[0].phase == "Stage 1"
+
+
+# --- review regressions ---------------------------------------------------------------
+
+
+def test_empty_output_retries_cleanly_without_empty_assistant_turn(kroot, fake_client):
+    """Empty first output must not thread an (API-rejected) empty assistant message."""
+    client = fake_client(outputs=["", '{"topics": []}'])
+    result = wrapper.run_call("extract_structure", {}, root=kroot, client=client)
+    assert result == {"topics": []}
+    assert client.call_count == 2
+    # The retry folds the correction into a single user turn (no empty assistant turn).
+    retry_messages = client.messages.calls[1]["messages"]
+    assert [m["role"] for m in retry_messages] == ["user"]
+    assert "not valid" in retry_messages[0]["content"]
+
+
+def test_empty_output_twice_is_validation_error_not_api_error(kroot, fake_client):
+    client = fake_client(outputs=["", "   \n  "])
+    with pytest.raises(wrapper.OutputValidationError):
+        wrapper.run_call("extract_structure", {}, root=kroot, client=client)
+    assert RunLog(kroot).read_all()[0].disposition is Disposition.rejected
+
+
+def test_extracts_second_json_fence_when_first_is_not_json(kroot, fake_client):
+    out = '```js\n{ a: 1 }\n```\n```json\n{"topics": ["z"]}\n```'
+    client = fake_client(outputs=[out])
+    result = wrapper.run_call("extract_structure", {}, root=kroot, client=client)
+    assert result == {"topics": ["z"]}
+    assert client.call_count == 1  # extracted without burning the retry
+
+
+def test_extracts_json_past_leading_prose_bracket(kroot, fake_client):
+    out = 'I think the set {a, b} is neat. Here is the answer: {"topics": ["p"]}'
+    client = fake_client(outputs=[out])
+    result = wrapper.run_call("extract_structure", {}, root=kroot, client=client)
+    assert result == {"topics": ["p"]}
+
+
+def test_input_validation_fails_fast_before_any_api_call(kroot, fake_client):
+    client = fake_client(outputs=['{"topics": []}'])
+    # kroot's template input_schema requires an object; a list violates it.
+    with pytest.raises(wrapper.InputValidationError):
+        wrapper.run_call("extract_structure", ["not", "an", "object"], root=kroot, client=client)
+    assert client.call_count == 0  # never called Claude
+    assert RunLog(kroot).read_all() == []  # and wrote no run-log entry
+
+
+def test_api_error_after_malformed_attempt_preserves_output(kroot):
+    from types import SimpleNamespace
+
+    class GarbageThenError:
+        def __init__(self):
+            self.messages = self
+            self.calls = []
+            self._n = 0
+
+        def create(self, **kwargs):
+            self.calls.append(kwargs)
+            self._n += 1
+            if self._n == 1:
+                return SimpleNamespace(content=[SimpleNamespace(text="garbage not json")])
+            raise RuntimeError("network boom")
+
+    client = GarbageThenError()
+    with pytest.raises(wrapper.ClaudeCallError):
+        wrapper.run_call("extract_structure", {}, root=kroot, client=client)
+
+    entry = RunLog(kroot).read_all()[0]
+    assert entry.raw_output_ref is not None  # attempt-1 output was not dropped
+    assert "garbage" in (kroot / entry.raw_output_ref).read_text()
