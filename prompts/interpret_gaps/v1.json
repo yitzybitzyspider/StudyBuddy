@@ -1,0 +1,72 @@
+{
+  "id": "interpret_gaps",
+  "task": "interpret_gaps",
+  "version": "v1",
+  "input_schema": {
+    "type": "object",
+    "required": [
+      "per_concept_rollup"
+    ],
+    "properties": {
+      "per_concept_rollup": {
+        "type": "object"
+      },
+      "dependency_context": {
+        "type": "object"
+      },
+      "gap_types": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+    "additionalProperties": true
+  },
+  "output_schema": {
+    "type": "object",
+    "required": [
+      "gaps"
+    ],
+    "properties": {
+      "gaps": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "concept",
+            "gap_type",
+            "confidence"
+          ],
+          "properties": {
+            "concept": {
+              "type": "string"
+            },
+            "gap_type": {
+              "type": "string"
+            },
+            "severity": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "confidence": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "rationale": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    "additionalProperties": false
+  },
+  "body": "Read the per-concept results within the dependency structure and explain WHERE understanding breaks down, not just where the score dipped. A miss downstream often points to a missing prerequisite upstream. Return gap hypotheses (one per concept+gap_type) with a confidence; a concept may have more than one gap type.",
+  "examples": [],
+  "metrics": {}
+}

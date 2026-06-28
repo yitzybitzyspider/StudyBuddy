@@ -1,0 +1,77 @@
+{
+  "version": "v1",
+  "difficulty_scale": {
+    "kind": "integer",
+    "min": 1,
+    "max": 5,
+    "bands": {
+      "easy": [
+        1,
+        2
+      ],
+      "medium": [
+        3
+      ],
+      "hard": [
+        4,
+        5
+      ]
+    },
+    "_note": "placeholder; granularity is an open question (spec §7)"
+  },
+  "gap_types": [
+    "foundational",
+    "depth",
+    "overconfidence",
+    "breadth",
+    "speed"
+  ],
+  "gap_thresholds": {
+    "foundational": {
+      "easy_band_correct_rate_below": 0.5
+    },
+    "depth": {
+      "easy_medium_correct_rate_at_least": 0.8,
+      "hard_correct_rate_below": 0.5
+    },
+    "overconfidence": {
+      "harder_correct_while_easier_missed": true,
+      "use_felt_lucky_flag": true
+    },
+    "breadth": {
+      "per_concept_correct_rate_spread_above": 0.4
+    },
+    "speed": {
+      "flag_blanks": true,
+      "time_spent_below_format_floor": true
+    },
+    "_note": "placeholders; tune via ratified promotion (philosophy §8)"
+  },
+  "weighting_coeffs": {
+    "self_assessment": 0.33,
+    "structural_inference": 0.34,
+    "difficulty_prior": 0.33,
+    "_note": "FR-C2 three-signal blend; start ~equal, calibrate later"
+  },
+  "sampling_rules": {
+    "diagnostic_size": 20,
+    "item_mix": {
+      "declared_weakness": 0.4,
+      "declared_strength_stress_test": 0.3,
+      "hidden_gap_probe": 0.3
+    },
+    "retrieval_order": [
+      "retrieve",
+      "adapt",
+      "generate",
+      "verify"
+    ],
+    "adaptive_batch_size": 4,
+    "_note": "diagnostic_size ~20 is spec-named (FR-C1); proportions/batch size are placeholders"
+  },
+  "stopping_rule": {
+    "gap_confidence_target": 0.8,
+    "max_adaptive_batches": 4,
+    "_note": "placeholder stopping rule; confidence target is an open question (spec §7)"
+  }
+}

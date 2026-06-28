@@ -1,0 +1,99 @@
+{
+  "id": "compose_plan",
+  "task": "compose_plan",
+  "version": "v1",
+  "input_schema": {
+    "type": "object",
+    "required": [
+      "gap_profile",
+      "item_sequences"
+    ],
+    "properties": {
+      "gap_profile": {
+        "type": "object"
+      },
+      "item_sequences": {
+        "type": "object"
+      },
+      "constraints": {
+        "type": "object"
+      }
+    },
+    "additionalProperties": true
+  },
+  "output_schema": {
+    "type": "object",
+    "required": [
+      "topics"
+    ],
+    "properties": {
+      "overview": {
+        "type": "string"
+      },
+      "topics": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "concept",
+            "summary"
+          ],
+          "properties": {
+            "concept": {
+              "type": "string"
+            },
+            "summary": {
+              "type": "string"
+            },
+            "source_links": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "kind",
+                  "ref"
+                ],
+                "properties": {
+                  "kind": {
+                    "enum": [
+                      "material",
+                      "web",
+                      "item",
+                      "run",
+                      "prompt",
+                      "concept"
+                    ]
+                  },
+                  "ref": {
+                    "type": "string"
+                  },
+                  "locator": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "item_sequence": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "rationale": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    "additionalProperties": false
+  },
+  "body": "Write the human-facing, topic-by-topic study plan over the confirmed gaps. For each topic give a short summary of what to study and why, the source links, and the ordered item sequence (foundational → depth → synthesis). The deterministic engine owns the schedule and time math; write only the content.",
+  "examples": [],
+  "metrics": {}
+}

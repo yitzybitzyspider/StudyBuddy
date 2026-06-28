@@ -1,0 +1,53 @@
+{
+  "id": "grade_response",
+  "task": "grade_response",
+  "version": "v1",
+  "input_schema": {
+    "type": "object",
+    "required": [
+      "response",
+      "grading_spec"
+    ],
+    "properties": {
+      "response": {
+        "type": "string"
+      },
+      "grading_spec": {
+        "type": "object"
+      },
+      "stem": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "additionalProperties": true
+  },
+  "output_schema": {
+    "type": "object",
+    "required": [
+      "score",
+      "reasoning",
+      "missed_facets"
+    ],
+    "properties": {
+      "score": {
+        "type": "number"
+      },
+      "reasoning": {
+        "type": "string"
+      },
+      "missed_facets": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+    "additionalProperties": false
+  },
+  "body": "Grade the open-ended response against its grading spec. Return a numeric score, the reasoning behind it, and the specific concept facets the response missed. Be concrete about what was and was not demonstrated.",
+  "examples": [],
+  "metrics": {}
+}

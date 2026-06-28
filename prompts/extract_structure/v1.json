@@ -1,0 +1,98 @@
+{
+  "id": "extract_structure",
+  "task": "extract_structure",
+  "version": "v1",
+  "input_schema": {
+    "type": "object",
+    "required": [
+      "material_text",
+      "subject"
+    ],
+    "properties": {
+      "material_text": {
+        "type": "string"
+      },
+      "subject": {
+        "type": "string"
+      },
+      "material_id": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "additionalProperties": true
+  },
+  "output_schema": {
+    "type": "object",
+    "required": [
+      "concepts"
+    ],
+    "properties": {
+      "concepts": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "name"
+          ],
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "parent": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "source_refs": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "kind",
+                  "ref"
+                ],
+                "properties": {
+                  "kind": {
+                    "enum": [
+                      "material",
+                      "web",
+                      "item",
+                      "run",
+                      "prompt",
+                      "concept"
+                    ]
+                  },
+                  "ref": {
+                    "type": "string"
+                  },
+                  "locator": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "difficulty_prior": {
+              "type": [
+                "number",
+                "null"
+              ]
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    "additionalProperties": false
+  },
+  "body": "Read the course/exam material and extract the concepts it covers. Return one entry per concept with its name and, where the material makes it clear, its parent concept and a source pointer (page/section). Cover the material as taught; do not invent topics it does not contain.",
+  "examples": [],
+  "metrics": {}
+}

@@ -1,0 +1,70 @@
+{
+  "id": "build_dependency_map",
+  "task": "build_dependency_map",
+  "version": "v1",
+  "input_schema": {
+    "type": "object",
+    "required": [
+      "concepts"
+    ],
+    "properties": {
+      "concepts": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      },
+      "sampled_items": {
+        "type": "array",
+        "items": {
+          "type": "object"
+        }
+      }
+    },
+    "additionalProperties": true
+  },
+  "output_schema": {
+    "type": "object",
+    "required": [
+      "edges"
+    ],
+    "properties": {
+      "edges": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "from_concept",
+            "to_concept",
+            "relation",
+            "confidence"
+          ],
+          "properties": {
+            "from_concept": {
+              "type": "string"
+            },
+            "to_concept": {
+              "type": "string"
+            },
+            "relation": {
+              "enum": [
+                "depends_on",
+                "prereq_of"
+              ]
+            },
+            "confidence": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    "additionalProperties": false
+  },
+  "body": "Given the concepts (and some sample questions for context), identify the prerequisite structure: which concept must be understood before another. Return directed edges with a confidence in [0,1]. Only assert an edge you have real evidence for; lower the confidence when unsure.",
+  "examples": [],
+  "metrics": {}
+}

@@ -1,0 +1,57 @@
+{
+  "id": "verify_item",
+  "task": "verify_item",
+  "version": "v1",
+  "input_schema": {
+    "type": "object",
+    "required": [
+      "item",
+      "intended_concept"
+    ],
+    "properties": {
+      "item": {
+        "type": "object"
+      },
+      "intended_concept": {
+        "type": "string"
+      }
+    },
+    "additionalProperties": true
+  },
+  "output_schema": {
+    "type": "object",
+    "required": [
+      "tests_intended_concept",
+      "answer_key_correct",
+      "unambiguous",
+      "verdict"
+    ],
+    "properties": {
+      "tests_intended_concept": {
+        "type": "boolean"
+      },
+      "answer_key_correct": {
+        "type": "boolean"
+      },
+      "unambiguous": {
+        "type": "boolean"
+      },
+      "verdict": {
+        "enum": [
+          "pass",
+          "fail"
+        ]
+      },
+      "issues": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+    "additionalProperties": false
+  },
+  "body": "Verify this adapted/generated item: does it actually test the intended concept, is the answer key correct, and is the item unambiguous? Answer each judgment, give an overall pass/fail verdict, and list any issues. Fail if any judgment is false.",
+  "examples": [],
+  "metrics": {}
+}

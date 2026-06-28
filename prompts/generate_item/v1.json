@@ -1,0 +1,111 @@
+{
+  "id": "generate_item",
+  "task": "generate_item",
+  "version": "v1",
+  "input_schema": {
+    "type": "object",
+    "required": [
+      "concept",
+      "format"
+    ],
+    "properties": {
+      "concept": {
+        "type": "string"
+      },
+      "difficulty": {
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "format": {
+        "enum": [
+          "mc",
+          "numeric",
+          "short",
+          "essay",
+          "application"
+        ]
+      },
+      "source_context": {
+        "type": "string"
+      }
+    },
+    "additionalProperties": true
+  },
+  "output_schema": {
+    "type": "object",
+    "required": [
+      "stem",
+      "format",
+      "answer_key",
+      "concept_names"
+    ],
+    "properties": {
+      "stem": {
+        "type": "string"
+      },
+      "format": {
+        "enum": [
+          "mc",
+          "numeric",
+          "short",
+          "essay",
+          "application"
+        ]
+      },
+      "options": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "answer_key": {},
+      "rationale": {
+        "type": "string"
+      },
+      "concept_names": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "source": {
+        "type": "object",
+        "required": [
+          "kind",
+          "ref"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "material",
+              "web",
+              "item",
+              "run",
+              "prompt",
+              "concept"
+            ]
+          },
+          "ref": {
+            "type": "string"
+          },
+          "locator": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "grading_spec": {
+        "type": "object"
+      }
+    },
+    "additionalProperties": false
+  },
+  "body": "Generate a fresh question for the given concept, difficulty, and format, grounded in the supplied source context. This is the last resort, used only to fill a gap where no real or adaptable question exists. Return the item with a correct, unambiguous answer key.",
+  "examples": [],
+  "metrics": {}
+}

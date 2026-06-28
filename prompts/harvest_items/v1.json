@@ -1,0 +1,114 @@
+{
+  "id": "harvest_items",
+  "task": "harvest_items",
+  "version": "v1",
+  "input_schema": {
+    "type": "object",
+    "required": [
+      "material_text",
+      "subject"
+    ],
+    "properties": {
+      "material_text": {
+        "type": "string"
+      },
+      "subject": {
+        "type": "string"
+      },
+      "concept_names": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+    "additionalProperties": true
+  },
+  "output_schema": {
+    "type": "object",
+    "required": [
+      "items"
+    ],
+    "properties": {
+      "items": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "stem",
+            "format",
+            "answer_key",
+            "concept_names"
+          ],
+          "properties": {
+            "stem": {
+              "type": "string"
+            },
+            "format": {
+              "enum": [
+                "mc",
+                "numeric",
+                "short",
+                "essay",
+                "application"
+              ]
+            },
+            "options": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "answer_key": {},
+            "rationale": {
+              "type": "string"
+            },
+            "concept_names": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "source": {
+              "type": "object",
+              "required": [
+                "kind",
+                "ref"
+              ],
+              "properties": {
+                "kind": {
+                  "enum": [
+                    "material",
+                    "web",
+                    "item",
+                    "run",
+                    "prompt",
+                    "concept"
+                  ]
+                },
+                "ref": {
+                  "type": "string"
+                },
+                "locator": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "additionalProperties": false
+            },
+            "grading_spec": {
+              "type": "object"
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    "additionalProperties": false
+  },
+  "body": "Retrieval-first: extract the REAL questions and answers already present in this material (worked examples, problem sets, past-exam questions), each tagged to the concept(s) it tests, with its answer key. Do not invent new questions here — only report what the material actually contains, with a source pointer.",
+  "examples": [],
+  "metrics": {}
+}

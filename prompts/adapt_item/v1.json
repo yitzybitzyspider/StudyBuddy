@@ -1,0 +1,112 @@
+{
+  "id": "adapt_item",
+  "task": "adapt_item",
+  "version": "v1",
+  "input_schema": {
+    "type": "object",
+    "required": [
+      "source_item",
+      "target_concept",
+      "target_format"
+    ],
+    "properties": {
+      "source_item": {
+        "type": "object"
+      },
+      "target_concept": {
+        "type": "string"
+      },
+      "target_difficulty": {
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "target_format": {
+        "enum": [
+          "mc",
+          "numeric",
+          "short",
+          "essay",
+          "application"
+        ]
+      }
+    },
+    "additionalProperties": true
+  },
+  "output_schema": {
+    "type": "object",
+    "required": [
+      "stem",
+      "format",
+      "answer_key",
+      "concept_names"
+    ],
+    "properties": {
+      "stem": {
+        "type": "string"
+      },
+      "format": {
+        "enum": [
+          "mc",
+          "numeric",
+          "short",
+          "essay",
+          "application"
+        ]
+      },
+      "options": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "answer_key": {},
+      "rationale": {
+        "type": "string"
+      },
+      "concept_names": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "source": {
+        "type": "object",
+        "required": [
+          "kind",
+          "ref"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "material",
+              "web",
+              "item",
+              "run",
+              "prompt",
+              "concept"
+            ]
+          },
+          "ref": {
+            "type": "string"
+          },
+          "locator": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "grading_spec": {
+        "type": "object"
+      }
+    },
+    "additionalProperties": false
+  },
+  "body": "Adapt the given real question to the target concept, difficulty, and format — for example reuse its structure with new numbers or context. Stay as close to the vetted original as the target allows. Return the adapted item with a correct answer key.",
+  "examples": [],
+  "metrics": {}
+}
