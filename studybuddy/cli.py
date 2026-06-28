@@ -17,6 +17,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from . import administer as administer_mod
 from . import diagnostic as diagnostic_mod
 from . import ingest as ingest_mod
 from . import intake as intake_mod
@@ -145,6 +146,31 @@ def cmd_compose_diagnostic(args: argparse.Namespace, client: Any | None = None) 
     return 0
 
 
+def cmd_administer(args: argparse.Namespace, client: Any | None = None) -> int:
+    root = paths.knowledge_root(args.root)
+    try:
+        result = administer_mod.administer(
+            args.subject, answers_path=args.answers, root=root, client=client,
+            learner_id=args.learner,
+        )
+    except (OSError, ClaudeCallError) as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 1
+    print(f"Graded {result['answered']} answers: {result['correct']} correct.\n")
+    for i, f in enumerate(result["feedback"], 1):
+        mark = "✓" if f["correct"] else "✗"
+        line = f"{i:2}. {mark} [{f['format']}] {f['stem'][:70]}"
+        print(line)
+        if f.get("blank"):
+            print("      (left blank)")
+        if not f["correct"] and "correct_answer" in f:
+            print(f"      answer: {f['correct_answer']}")
+        if "score" in f:
+            print(f"      score: {f['score']}  missed: {', '.join(f.get('missed_facets') or []) or '—'}")
+    print("\nNext: studybuddy diagnose --subject " + args.subject)
+    return 0
+
+
 def cmd_show_runlog(args: argparse.Namespace) -> int:
     root = paths.knowledge_root(args.root)
     entries = RunLog(root).read_all()
@@ -227,6 +253,15 @@ def build_parser() -> argparse.ArgumentParser:
     p_compose.add_argument("--learner", default=store.DEFAULT_LEARNER)
     p_compose.add_argument("--size", type=int, default=None, help="override item count (default: heuristics)")
     p_compose.set_defaults(func=cmd_compose_diagnostic)
+
+    p_admin = sub.add_parser(
+        "administer", parents=[common],
+        help="Stage 5: grade the filled diagnostic answers and record results",
+    )
+    p_admin.add_argument("--subject", required=True)
+    p_admin.add_argument("--learner", default=store.DEFAULT_LEARNER)
+    p_admin.add_argument("--answers", default=None, help="answers file (default: the composed one)")
+    p_admin.set_defaults(func=cmd_administer)
 
     p_log = sub.add_parser("show-runlog", parents=[common], help="print the run log")
     p_log.add_argument("-n", "--limit", type=int, default=0, help="show only the last N entries")
