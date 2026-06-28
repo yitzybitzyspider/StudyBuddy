@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from . import ingest as ingest_mod
+from . import intake as intake_mod
 from . import paths, seed, store
 from .models import MaterialType, PromptTask
 from .runlog import RunLog
@@ -108,6 +109,24 @@ def cmd_show_topics(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_intake(args: argparse.Namespace) -> int:
+    root = paths.knowledge_root(args.root)
+    if args.answers:
+        intake = intake_mod.ingest_answers(
+            args.subject, args.answers, root=root, learner_id=args.learner
+        )
+        print("Intake captured:")
+        print(f"  exam format:        {intake.exam_format}")
+        print(f"  total study time:   {intake.total_study_time} h")
+        print(f"  daily availability: {intake.daily_availability} h")
+        print(f"  per-topic confidence: {len(intake.per_topic_confidence)} topic(s)")
+        return 0
+    path = intake_mod.build_template(args.subject, root=root, learner_id=args.learner)
+    print(f"Wrote intake template to {path}")
+    print(f"Fill it in, then run: studybuddy intake --subject {args.subject} --answers {path}")
+    return 0
+
+
 def cmd_show_runlog(args: argparse.Namespace) -> int:
     root = paths.knowledge_root(args.root)
     entries = RunLog(root).read_all()
@@ -172,6 +191,15 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_topics.add_argument("--subject", required=True)
     p_topics.set_defaults(func=cmd_show_topics)
+
+    p_intake = sub.add_parser(
+        "intake", parents=[common],
+        help="Stage 3: write an intake template, or ingest filled answers with --answers",
+    )
+    p_intake.add_argument("--subject", required=True)
+    p_intake.add_argument("--learner", default=store.DEFAULT_LEARNER)
+    p_intake.add_argument("--answers", default=None, help="path to the filled intake answers JSON")
+    p_intake.set_defaults(func=cmd_intake)
 
     p_log = sub.add_parser("show-runlog", parents=[common], help="print the run log")
     p_log.add_argument("-n", "--limit", type=int, default=0, help="show only the last N entries")
