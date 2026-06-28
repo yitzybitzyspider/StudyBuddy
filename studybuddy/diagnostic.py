@@ -118,6 +118,7 @@ def compose(
     client=None,
     learner_id: str = store.DEFAULT_LEARNER,
     size: int | None = None,
+    focus: list[str] | None = None,
 ) -> dict:
     concepts = store.load_concepts(subject, root=root)
     if not concepts:
@@ -128,6 +129,11 @@ def compose(
     target = size or int(store.load_heuristics(root=root).sampling_rules.get("diagnostic_size", 20))
 
     ordered = sorted(concepts, key=lambda c: _priority(c, confidence))
+    if focus:  # FR-G2 shift: restrict composition to the chosen topic(s)
+        wanted = {f for f in focus} | {store.concept_id(f) for f in focus}
+        ordered = [c for c in ordered if c.id in wanted or c.name in wanted]
+        if not ordered:
+            raise ValueError(f"focus {focus!r} matched no concepts in subject {subject!r}")
 
     # Retrieval-first: round-robin one bank item per concept (weakest first) until target.
     queues: dict[str, list[Item]] = defaultdict(list)

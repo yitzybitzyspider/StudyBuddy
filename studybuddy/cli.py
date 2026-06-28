@@ -22,7 +22,7 @@ from . import diagnose as diagnose_mod
 from . import diagnostic as diagnostic_mod
 from . import ingest as ingest_mod
 from . import intake as intake_mod
-from . import paths, seed, store
+from . import paths, plan as plan_mod, seed, store
 from .models import MaterialType, PromptTask
 from .runlog import RunLog
 from .wrapper import ClaudeCallError, run_call
@@ -190,6 +190,44 @@ def cmd_diagnose(args: argparse.Namespace, client: Any | None = None) -> int:
     return 0
 
 
+def cmd_plan(args: argparse.Namespace, client: Any | None = None) -> int:
+    root = paths.knowledge_root(args.root)
+    try:
+        result = plan_mod.compose(args.subject, root=root, client=client, learner_id=args.learner)
+    except (ValueError, ClaudeCallError) as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 1
+    plan = result["study_plan"]
+    print(f"Study plan ({len(plan.topics)} topics) written to {result['markdown_path']}")
+    if result["overview"]:
+        print(f"\n{result['overview']}")
+    return 0
+
+
+def cmd_steer(args: argparse.Namespace, client: Any | None = None) -> int:
+    root = paths.knowledge_root(args.root)
+    if args.shift:
+        action, focus = "shift", [args.shift]
+    elif args.fewer:
+        action, focus = "fewer", None
+    else:
+        action, focus = "more", None
+    try:
+        result = plan_mod.steer(
+            args.subject, action=action, focus=focus, root=root, client=client,
+            learner_id=args.learner,
+        )
+    except (ValueError, ClaudeCallError) as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 1
+    diag = result["diagnostic"]
+    print(f"Steered ({action}): new batch {diag.id} with {len(diag.item_ids)} items.")
+    print(f"  retrieved: {result['retrieved']}  generated: {result['generated']}")
+    print(f"Answers template: {result['answers_path']}")
+    print(f"Fill it in, then run: studybuddy administer --subject {args.subject}")
+    return 0
+
+
 def cmd_show_runlog(args: argparse.Namespace) -> int:
     root = paths.knowledge_root(args.root)
     entries = RunLog(root).read_all()
@@ -289,6 +327,26 @@ def build_parser() -> argparse.ArgumentParser:
     p_diag.add_argument("--subject", required=True)
     p_diag.add_argument("--learner", default=store.DEFAULT_LEARNER)
     p_diag.set_defaults(func=cmd_diagnose)
+
+    p_plan = sub.add_parser(
+        "plan", parents=[common],
+        help="Stage 8: compose the topic-by-topic study plan one-pager",
+    )
+    p_plan.add_argument("--subject", required=True)
+    p_plan.add_argument("--learner", default=store.DEFAULT_LEARNER)
+    p_plan.set_defaults(func=cmd_plan)
+
+    p_steer = sub.add_parser(
+        "steer", parents=[common],
+        help="FR-G2: recompose a follow-up batch (more / fewer / shift focus)",
+    )
+    p_steer.add_argument("--subject", required=True)
+    p_steer.add_argument("--learner", default=store.DEFAULT_LEARNER)
+    steer_group = p_steer.add_mutually_exclusive_group()
+    steer_group.add_argument("--more", action="store_true", help="more questions like these")
+    steer_group.add_argument("--fewer", action="store_true", help="a smaller follow-up batch")
+    steer_group.add_argument("--shift", metavar="TOPIC", default=None, help="shift focus to a topic")
+    p_steer.set_defaults(func=cmd_steer)
 
     p_log = sub.add_parser("show-runlog", parents=[common], help="print the run log")
     p_log.add_argument("-n", "--limit", type=int, default=0, help="show only the last N entries")
