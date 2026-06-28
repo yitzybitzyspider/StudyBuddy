@@ -17,6 +17,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from . import diagnostic as diagnostic_mod
 from . import ingest as ingest_mod
 from . import intake as intake_mod
 from . import paths, seed, store
@@ -127,6 +128,23 @@ def cmd_intake(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_compose_diagnostic(args: argparse.Namespace, client: Any | None = None) -> int:
+    root = paths.knowledge_root(args.root)
+    try:
+        result = diagnostic_mod.compose(
+            args.subject, root=root, client=client, learner_id=args.learner, size=args.size
+        )
+    except (ValueError, ClaudeCallError) as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 1
+    diag = result["diagnostic"]
+    print(f"Composed diagnostic {diag.id}: {len(diag.item_ids)} items")
+    print(f"  retrieved (real): {result['retrieved']}   generated: {result['generated']}")
+    print(f"Answers template: {result['answers_path']}")
+    print(f"Fill it in, then run: studybuddy administer --subject {args.subject} --answers {result['answers_path']}")
+    return 0
+
+
 def cmd_show_runlog(args: argparse.Namespace) -> int:
     root = paths.knowledge_root(args.root)
     entries = RunLog(root).read_all()
@@ -200,6 +218,15 @@ def build_parser() -> argparse.ArgumentParser:
     p_intake.add_argument("--learner", default=store.DEFAULT_LEARNER)
     p_intake.add_argument("--answers", default=None, help="path to the filled intake answers JSON")
     p_intake.set_defaults(func=cmd_intake)
+
+    p_compose = sub.add_parser(
+        "compose-diagnostic", parents=[common],
+        help="Stage 4: assemble a ~20-item diagnostic (retrieval-first) + an answers template",
+    )
+    p_compose.add_argument("--subject", required=True)
+    p_compose.add_argument("--learner", default=store.DEFAULT_LEARNER)
+    p_compose.add_argument("--size", type=int, default=None, help="override item count (default: heuristics)")
+    p_compose.set_defaults(func=cmd_compose_diagnostic)
 
     p_log = sub.add_parser("show-runlog", parents=[common], help="print the run log")
     p_log.add_argument("-n", "--limit", type=int, default=0, help="show only the last N entries")

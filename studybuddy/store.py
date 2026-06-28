@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from . import ids, paths
-from .models import Concept, Item, LearnerState, Material
+from .models import Concept, HeuristicsConfig, Item, LearnerState, Material
 
 DEFAULT_LEARNER = "learner_default"
 
@@ -28,6 +28,14 @@ DEFAULT_LEARNER = "learner_default"
 def concept_id(name: str) -> str:
     """The stable concept id for a concept name (used to link items <-> concepts)."""
     return ids.slug_id("concept", name)
+
+
+def load_heuristics(*, root=None) -> HeuristicsConfig:
+    """Load the deterministic heuristics config (seeded in Phase 0)."""
+    raw = _read_json(paths.knowledge_root(root) / "heuristics" / "config.json")
+    if raw is None:
+        raise FileNotFoundError("heuristics/config.json not found; run `studybuddy init`")
+    return HeuristicsConfig.model_validate(raw)
 
 
 # --- low-level json -------------------------------------------------------------------
