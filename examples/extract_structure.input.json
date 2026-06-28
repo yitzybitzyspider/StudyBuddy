@@ -1,0 +1,5 @@
+{
+  "subject": "corporate-finance",
+  "material_id": "material_sample",
+  "material_text": "Chapter 5: Net Present Value. The time value of money holds that a dollar today is worth more than a dollar tomorrow. Present value discounts a future cash flow by the discount rate. Net present value (NPV) sums the present values of all of a project's cash flows, including the initial outlay; accept a project when its NPV is positive. The internal rate of return (IRR) is the discount rate that makes NPV zero. NPV is preferred to the payback period because payback ignores both the time value of money and cash flows beyond the cutoff."
+}
