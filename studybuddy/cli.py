@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from . import administer as administer_mod
+from . import diagnose as diagnose_mod
 from . import diagnostic as diagnostic_mod
 from . import ingest as ingest_mod
 from . import intake as intake_mod
@@ -171,6 +172,24 @@ def cmd_administer(args: argparse.Namespace, client: Any | None = None) -> int:
     return 0
 
 
+def cmd_diagnose(args: argparse.Namespace, client: Any | None = None) -> int:
+    root = paths.knowledge_root(args.root)
+    try:
+        result = diagnose_mod.diagnose(
+            args.subject, root=root, client=client, learner_id=args.learner
+        )
+    except (ValueError, ClaudeCallError) as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 1
+    profile = result["gap_profile"]
+    print(f"Diagnosed {len(profile.entries)} gap(s):")
+    for e in profile.entries:
+        sev = f" (severity {e.severity})" if e.severity is not None else ""
+        print(f"  - {e.concept_id}: {e.gap_type}{sev}")
+    print(f"\nNext: studybuddy plan --subject {args.subject}")
+    return 0
+
+
 def cmd_show_runlog(args: argparse.Namespace) -> int:
     root = paths.knowledge_root(args.root)
     entries = RunLog(root).read_all()
@@ -262,6 +281,14 @@ def build_parser() -> argparse.ArgumentParser:
     p_admin.add_argument("--learner", default=store.DEFAULT_LEARNER)
     p_admin.add_argument("--answers", default=None, help="answers file (default: the composed one)")
     p_admin.set_defaults(func=cmd_administer)
+
+    p_diag = sub.add_parser(
+        "diagnose", parents=[common],
+        help="Stage 6: classify gaps and interpret why understanding breaks down",
+    )
+    p_diag.add_argument("--subject", required=True)
+    p_diag.add_argument("--learner", default=store.DEFAULT_LEARNER)
+    p_diag.set_defaults(func=cmd_diagnose)
 
     p_log = sub.add_parser("show-runlog", parents=[common], help="print the run log")
     p_log.add_argument("-n", "--limit", type=int, default=0, help="show only the last N entries")
