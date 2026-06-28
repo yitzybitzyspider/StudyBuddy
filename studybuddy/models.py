@@ -42,6 +42,7 @@ class MaterialType(str, Enum):
     notes = "notes"
     objectives = "objectives"
     recording = "recording"
+    exam = "exam"  # B8: a past exam is a first-class input (FR-A2); spec §3 enum omitted it
 
 
 class ItemFormat(str, Enum):

@@ -60,6 +60,26 @@ proposals inbox if any should become canonical in the docs.
   item traces to an exact `PromptTemplate` even if version strings repeat across tasks
   (spec §3 stored only a bare `template_version`). Derives from philosophy §11.
 
+## 2026-06-28 — Phase 1 walking skeleton
+
+### E. Persistence & pipeline decisions
+
+| # | Decision | Choice | Grounding |
+|---|----------|--------|-----------|
+| E1 | Persistence layout | Subject-scoped JSON: `concepts/<subject>.json`, `items/<subject>.json` (item bank), `materials/<subject>.json` (+ `materials/raw/<id>.txt` for raw text). Learner-scoped: `learner/<lid>/state.json`, `learner/<lid>/diagnostic.json`. Single default learner `learner_default`. | A2 (files under git); NFR-2 (learner_id keeps multi-user open) |
+| E2 | Interaction model (Phase 1) | **File-based**: `compose-diagnostic` and `intake` emit editable JSON; the user fills answers; `administer`/`intake --answers` read them back. The friendly in-system UI is Phase 4. | build-plan (CLI first, UI later); user choice |
+| E3 | Ingestion inputs | `.txt`/`.md` read directly; PDF via a thin `pypdf` text pass. | build-plan ("pasted or PDF"); FR-A1/A2 |
+| E4 | Subject provisioning | `--subject` at ingest stamps `Concept.subject` and the file partition (resolves the spec gap that Material carries no subject). | spec §3 gap; FR-B1 |
+| E5 | Concept linking | Items reference concepts by `concept_id = slug_id("concept", name)`; deterministic code maps harvested/diagnostic `concept_names` → ids within the subject. Each concept also gets a `Reference(material)` backref. | NFR-3; philosophy §11 |
+| E6 | Calibration (early slice) | Administering updates each served item's `times_seen` and `correct_rate` (Track A auto-accrual). Full calibration (discrimination, etc.) is Phase 2. | build-plan rule 2 (cheap high-leverage early) |
+
+### B8. Data-model reconciliation: `MaterialType.exam`
+
+Spec §3's `Material.type` enum (syllabus, textbook, section, notes, objectives, recording)
+omits **exam**, but FR-A2 makes a past exam a first-class, strongly-preferred input that
+`harvest_items` pulls real questions from. Added `exam` to `MaterialType`. Recorded here, not
+silently changed in the spec (philosophy §8).
+
 ### D. Deferred (not built in Phase 0, per the build plan)
 
 Dependency map (Stage 2 / Phase 3), adaptive sampling (Phase 3), spacing engine & time

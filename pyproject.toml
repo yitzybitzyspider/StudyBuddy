@@ -12,6 +12,7 @@ dependencies = [
     "pydantic>=2",
     "python-ulid>=2",
     "jsonschema>=4",
+    "pypdf>=4",
 ]
 
 [project.optional-dependencies]

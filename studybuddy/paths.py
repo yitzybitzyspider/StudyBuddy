@@ -14,7 +14,7 @@ import os
 from pathlib import Path
 
 # The directories that make up the knowledge layer (decision A2).
-KNOWLEDGE_DIRS = ("concepts", "items", "prompts", "heuristics", "runs", "learner")
+KNOWLEDGE_DIRS = ("concepts", "items", "materials", "prompts", "heuristics", "runs", "learner")
 
 # Markers that identify the repo root when walking up.
 _ROOT_MARKERS = ("prompts", "runs", "docs")

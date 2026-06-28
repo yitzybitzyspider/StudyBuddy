@@ -17,8 +17,9 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from . import paths, seed
-from .models import PromptTask
+from . import ingest as ingest_mod
+from . import paths, seed, store
+from .models import MaterialType, PromptTask
 from .runlog import RunLog
 from .wrapper import ClaudeCallError, run_call
 
@@ -58,6 +59,52 @@ def cmd_run_call(args: argparse.Namespace, client: Any | None = None) -> int:
         return 1
     json.dump(result, sys.stdout, indent=2, ensure_ascii=False)
     sys.stdout.write("\n")
+    return 0
+
+
+def cmd_ingest(args: argparse.Namespace, client: Any | None = None) -> int:
+    root = paths.knowledge_root(args.root)
+    try:
+        summary = ingest_mod.ingest(
+            args.subject,
+            args.files,
+            material_type=MaterialType(args.type),
+            root=root,
+            client=client,
+        )
+    except ClaudeCallError as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 1
+    print(f"Ingested {summary['materials']} material(s) into subject '{args.subject}':")
+    print(f"  files:    {', '.join(summary['files'])}")
+    print(f"  concepts: {summary['concepts']}")
+    print(f"  items:    {summary['items']} (retrieved)")
+    return 0
+
+
+def cmd_show_topics(args: argparse.Namespace) -> int:
+    root = paths.knowledge_root(args.root)
+    concepts = store.load_concepts(args.subject, root=root)
+    if not concepts:
+        print(f"No topics for subject '{args.subject}'. Run `ingest` first.")
+        return 0
+    children: dict[str | None, list] = {}
+    for c in concepts:
+        children.setdefault(c.parent_id, []).append(c)
+    ids_present = {c.id for c in concepts}
+
+    def show(parent_id, depth):
+        for c in sorted(children.get(parent_id, []), key=lambda x: x.name):
+            print("  " * depth + f"- {c.name}")
+            show(c.id, depth + 1)
+
+    print(f"Topics for subject '{args.subject}' ({len(concepts)} concepts):")
+    show(None, 1)
+    # Show any concepts whose parent isn't itself a known concept as top-level too.
+    for c in sorted(concepts, key=lambda x: x.name):
+        if c.parent_id is not None and c.parent_id not in ids_present:
+            print(f"  - {c.name}")
+            show(c.id, 1)
     return 0
 
 
@@ -107,6 +154,24 @@ def build_parser() -> argparse.ArgumentParser:
     p_run.add_argument("--model", default=None, help="override the model")
     p_run.add_argument("--phase", default=None, help="run-log phase label (default: task name)")
     p_run.set_defaults(func=cmd_run_call)
+
+    p_ingest = sub.add_parser(
+        "ingest", parents=[common],
+        help="Stage 1: ingest material (.txt/.md/.pdf), extract concepts, harvest real items",
+    )
+    p_ingest.add_argument("--subject", required=True, help="subject to ingest into")
+    p_ingest.add_argument(
+        "--type", default="section", choices=[t.value for t in MaterialType],
+        help="material type (default: section)",
+    )
+    p_ingest.add_argument("files", nargs="+", help="material files (.txt/.md/.pdf)")
+    p_ingest.set_defaults(func=cmd_ingest)
+
+    p_topics = sub.add_parser(
+        "show-topics", parents=[common], help="print the extracted topic hierarchy for a subject"
+    )
+    p_topics.add_argument("--subject", required=True)
+    p_topics.set_defaults(func=cmd_show_topics)
 
     p_log = sub.add_parser("show-runlog", parents=[common], help="print the run log")
     p_log.add_argument("-n", "--limit", type=int, default=0, help="show only the last N entries")
