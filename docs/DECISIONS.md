@@ -113,6 +113,15 @@ diagnostic, administer, diagnose, plan, steer) and adds no pipeline logic. Optio
 | H4 | Proposals-inbox stub | The Phase-5 inbox/gate is not built yet, so low-confidence edges are **held** (append-only JSONL under `proposals/`) rather than silently dropped or auto-applied. The Phase-5 engine will consume this file. | build-plan Phase 5; philosophy §8 |
 | H5 | Dependency-aware diagnosis (Stage 6) | `interpret_gaps` now receives a real `dependency_context`: per tested concept, its prerequisites (both edge directions normalized — `depends_on` and `prereq_of` resolve to "what sits below X"), each with edge confidence and the learner's correct_rate on that prerequisite (null if untested). This lets a downstream miss be read as an upstream prerequisite gap. `dependency_context` stays schema-optional (empty when the map has no edges yet), superseding the Phase-1 placeholder `{}` (closes the C0 "becomes required in Phase 3" note pragmatically — populated, not required). | spec §Stage-6 ("interpreted inside the dependency map"); C0 |
 
+### I. Adaptive sampling & gap accrual (Stage 7)
+
+| # | Decision | Choice | Grounding |
+|---|----------|--------|-----------|
+| I1 | GapEntry gains `confidence` | `GapEntry` now carries a `confidence` (optional), populated from `interpret_gaps`, so the stopping rule has a real quantity to test. Was dropped in Phase 1. | spec §Stage-7 (stopping rule on gap-profile confidence) |
+| I2 | Gap accrual across batches | `diagnose` merges the fresh gap read with the prior profile: a re-observed `(concept, gap_type)` **accrues** confidence (noisy-OR) and becomes `confirmed`; a prior gap whose concept was re-tested but did not resurface becomes `resolved`; a prior gap for an untested concept carries forward unchanged; a new gap enters as `hypothesis`. This is the Stage-7 "GapProfile status transitions" writeback. | spec §Stage-7; philosophy §8 (auto-accrual) |
+| I3 | Stopping rule | `sampling.stopping_status` fires when there are no open (non-resolved) gaps, when **every** open gap is at/above `stopping_rule.gap_confidence_target` (0.8), or when `max_adaptive_batches` (4) is reached. The batch cap guarantees termination (philosophy §9 — no unbounded loop pretending at rigor). | spec §Stage-7; heuristics config |
+| I4 | Strategic batch selection | `sampling.select_focus` picks, in priority order: the **weakest** open gap (lowest confidence), a **boundary** prerequisite that is itself shaky (via the Stage-2 dependency edges), and one **strength** to verify (a concept scored ≥0.8 this batch). Deterministic; sourcing/grading reuse Stages 4–6. File-based loop (E2): `sample` composes the next batch, the user answers + administers + diagnoses, then calls `sample` again. | spec §Stage-7 (weakest / boundary / verification) |
+
 ### D. Deferred (not built in Phase 0, per the build plan)
 
 Dependency map (Stage 2 / Phase 3), adaptive sampling (Phase 3), spacing engine & time

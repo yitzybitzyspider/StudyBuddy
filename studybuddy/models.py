@@ -257,6 +257,9 @@ class GapEntry(_Base):
     concept_id: str
     gap_type: str  # singular; a concept may appear in several entries (B1)
     severity: Optional[float] = None
+    # Confidence that this gap is real. Accrues across adaptive batches (Stage 7); the
+    # stopping rule fires when every open gap is at/above the heuristics target.
+    confidence: Optional[float] = None
     evidence_refs: list[Reference] = Field(default_factory=list)
     status: GapStatus = GapStatus.hypothesis
 

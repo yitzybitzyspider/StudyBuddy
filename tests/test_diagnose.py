@@ -118,6 +118,27 @@ def test_dependency_context_passed_to_interpret_gaps(tmp_path, fake_client):
     assert dep["prerequisite_tested"] is True
 
 
+def test_gap_confidence_accrues_and_status_confirms_across_batches(tmp_path, fake_client):
+    from studybuddy.models import GapEntry, GapProfile, GapStatus
+
+    _setup(tmp_path, {"concept_npv": {"seen": 4, "correct": 1, "correct_rate": 0.25, "blanks": 0}})
+    # seed a prior hypothesis for the same concept+gap_type at 0.5
+    state = store.load_learner(root=tmp_path)
+    state.gap_profile = GapProfile(
+        learner_id=store.DEFAULT_LEARNER,
+        entries=[GapEntry(concept_id="concept_npv", gap_type="foundational", confidence=0.5)],
+        updated_at=ids.utcnow(),
+    )
+    store.save_learner(state, root=tmp_path)
+
+    # interp returns the same gap at 0.7 -> noisy-OR 0.5 + 0.5*0.7 = 0.85, status confirmed
+    client = fake_client(outputs=[INTERP_OUT.replace('"NPV"', '"concept_npv"')])
+    result = diagnose.diagnose("finance", root=tmp_path, client=client)
+    entry = next(e for e in result["gap_profile"].entries if e.concept_id == "concept_npv")
+    assert abs(entry.confidence - 0.85) < 1e-9
+    assert entry.status is GapStatus.confirmed
+
+
 def test_no_results_raises(tmp_path):
     for d in ("prompts", "heuristics", "runs", "concepts", "learner"):
         (tmp_path / d).mkdir(parents=True, exist_ok=True)

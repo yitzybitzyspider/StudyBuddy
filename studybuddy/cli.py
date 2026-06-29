@@ -23,7 +23,7 @@ from . import diagnose as diagnose_mod
 from . import diagnostic as diagnostic_mod
 from . import ingest as ingest_mod
 from . import intake as intake_mod
-from . import paths, plan as plan_mod, seed, store
+from . import paths, plan as plan_mod, sampling as sampling_mod, seed, store
 from . import websearch as websearch_mod
 from .models import MaterialType, PromptTask
 from .runlog import RunLog
@@ -206,6 +206,33 @@ def cmd_diagnose(args: argparse.Namespace, client: Any | None = None) -> int:
     return 0
 
 
+def cmd_sample(args: argparse.Namespace, client: Any | None = None) -> int:
+    root = paths.knowledge_root(args.root)
+    try:
+        result = sampling_mod.next_batch(
+            args.subject, root=root, client=client, learner_id=args.learner
+        )
+    except (ValueError, ClaudeCallError) as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 1
+    status = result["status"]
+    print(f"Stopping rule: target {status['target']}, batch {status['batches_done']}/{status['max_batches']}")
+    if not result["composed"]:
+        print(f"✓ Done sampling — {status['reason']}.")
+        print(f"Next: studybuddy plan --subject {args.subject}")
+        return 0
+    concepts = store.load_concepts(args.subject, root=root)
+    name_by_id = {c.id: c.name for c in concepts}
+    focus = ", ".join(name_by_id.get(c, c) for c in result["focus"]) or "(broad)"
+    diag = result["diagnostic"]
+    print(f"Next strategic batch ({status['reason']}): {len(diag.item_ids)} items focused on {focus}.")
+    print(f"  retrieved: {result['retrieved']}  generated: {result['generated']}")
+    print(f"Answers template: {result['answers_path']}")
+    print(f"Fill it in, then: studybuddy administer --subject {args.subject} && "
+          f"studybuddy diagnose --subject {args.subject} && studybuddy sample --subject {args.subject}")
+    return 0
+
+
 def cmd_plan(args: argparse.Namespace, client: Any | None = None) -> int:
     root = paths.knowledge_root(args.root)
     try:
@@ -377,6 +404,14 @@ def build_parser() -> argparse.ArgumentParser:
     p_diag.add_argument("--subject", required=True)
     p_diag.add_argument("--learner", default=store.DEFAULT_LEARNER)
     p_diag.set_defaults(func=cmd_diagnose)
+
+    p_sample = sub.add_parser(
+        "sample", parents=[common],
+        help="Stage 7: compose the next strategic adaptive batch (or report the stopping rule)",
+    )
+    p_sample.add_argument("--subject", required=True)
+    p_sample.add_argument("--learner", default=store.DEFAULT_LEARNER)
+    p_sample.set_defaults(func=cmd_sample)
 
     p_plan = sub.add_parser(
         "plan", parents=[common],

@@ -138,6 +138,55 @@ def _dependency_context(concepts, rollup, name_by_id) -> dict:
     return context
 
 
+def _noisy_or(old, new) -> float:
+    o = old or 0.0
+    n = new if new is not None else 0.5
+    return o + (1.0 - o) * n
+
+
+def _merge_gap_entries(prior, fresh, rollup) -> list[GapEntry]:
+    """Accrue gap hypotheses across adaptive batches and transition their status (Stage 7).
+
+    - A gap re-observed this batch **accrues** confidence (noisy-OR) and becomes ``confirmed``.
+    - A prior gap whose concept was **re-tested** this batch but did **not** resurface is
+      treated as ``resolved`` (the follow-up evidence contradicted it).
+    - A prior gap whose concept was **not** tested this batch carries forward unchanged.
+    - A brand-new gap enters as a ``hypothesis``.
+    """
+    by_key = {(e.concept_id, e.gap_type): e for e in prior}
+    fresh_keys = {(e.concept_id, e.gap_type) for e in fresh}
+    tested = set(rollup.keys())
+    out: list[GapEntry] = []
+
+    for e in fresh:
+        key = (e.concept_id, e.gap_type)
+        old = by_key.get(key)
+        if old is not None:
+            out.append(
+                GapEntry(
+                    concept_id=e.concept_id,
+                    gap_type=e.gap_type,
+                    severity=e.severity if e.severity is not None else old.severity,
+                    confidence=_noisy_or(old.confidence, e.confidence),
+                    evidence_refs=old.evidence_refs or e.evidence_refs,
+                    status=GapStatus.confirmed,
+                )
+            )
+        else:
+            out.append(e)
+
+    # carry forward / resolve prior gaps not re-observed this batch
+    for key, old in by_key.items():
+        if key in fresh_keys:
+            continue
+        cid, _ = key
+        if cid in tested:
+            out.append(old.model_copy(update={"status": GapStatus.resolved}))
+        else:
+            out.append(old)  # untested this batch — leave as-is
+    return out
+
+
 def diagnose(subject: str, *, root=None, client=None, learner_id: str = store.DEFAULT_LEARNER) -> dict:
     state = store.load_learner(learner_id, root=root)
     if not state.diagnostic_results:
@@ -181,18 +230,22 @@ def diagnose(subject: str, *, root=None, client=None, learner_id: str = store.DE
             return by_name[value]
         return store.concept_id(value)
 
-    entries: list[GapEntry] = []
+    fresh: list[GapEntry] = []
     for g in interp.get("gaps", []):
         cid = resolve(g["concept"])
-        entries.append(
+        fresh.append(
             GapEntry(
                 concept_id=cid,
                 gap_type=g["gap_type"],
                 severity=g.get("severity"),
+                confidence=g.get("confidence"),
                 status=GapStatus.hypothesis,
                 evidence_refs=[Reference(kind=RefKind.concept, ref=cid)],
             )
         )
+
+    prior = state.gap_profile.entries if state.gap_profile else []
+    entries = _merge_gap_entries(prior, fresh, result.per_concept_rollup)
 
     profile = GapProfile(learner_id=learner_id, entries=entries, updated_at=ids.utcnow())
     state.gap_profile = profile
