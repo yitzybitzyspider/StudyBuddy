@@ -321,6 +321,11 @@ def run_call(
 
 
 def _default_client() -> Any:
+    # Offline test mode: no network, no API key. See studybuddy/offline.py.
+    if os.environ.get("STUDYBUDDY_OFFLINE"):
+        from .offline import OfflineClient
+
+        return OfflineClient()
     import anthropic
 
     return anthropic.Anthropic()
