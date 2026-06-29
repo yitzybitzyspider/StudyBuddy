@@ -99,6 +99,16 @@ def _correction(prior_error: Exception | None) -> str:
     )
 
 
+_MAX_PAUSE_TURNS = 4  # server-tool (e.g. web_search) continuation cap
+
+
+def _create(client, model, max_tokens, system, messages, tools):
+    kwargs: dict[str, Any] = dict(model=model, max_tokens=max_tokens, system=system, messages=messages)
+    if tools:
+        kwargs["tools"] = tools
+    return client.messages.create(**kwargs)
+
+
 def _call_api(
     client: Any,
     model: str,
@@ -107,6 +117,7 @@ def _call_api(
     structured_input: Any,
     prior_raw: str | None,
     prior_error: Exception | None,
+    tools: list | None = None,
 ) -> str:
     user = _user_content(template, structured_input)
     messages: list[dict[str, Any]] = [{"role": "user", "content": user}]
@@ -119,12 +130,15 @@ def _call_api(
             messages.append({"role": "user", "content": _correction(prior_error)})
         else:
             messages = [{"role": "user", "content": user + "\n\n" + _correction(prior_error)}]
-    response = client.messages.create(
-        model=model,
-        max_tokens=max_tokens,
-        system=_system_prompt(template),
-        messages=messages,
-    )
+    system = _system_prompt(template)
+    response = _create(client, model, max_tokens, system, messages, tools)
+    # Server tools (web_search) may pause when they hit their iteration limit; re-send the
+    # assistant turn to continue until the model finishes (bounded).
+    pauses = 0
+    while getattr(response, "stop_reason", None) == "pause_turn" and pauses < _MAX_PAUSE_TURNS:
+        pauses += 1
+        messages = messages + [{"role": "assistant", "content": response.content}]
+        response = _create(client, model, max_tokens, system, messages, tools)
     return _text_of(response)
 
 
@@ -251,6 +265,7 @@ def run_call(
     model: str | None = None,
     max_tokens: int = DEFAULT_MAX_TOKENS,
     phase: str | None = None,
+    tools: list | None = None,
 ) -> Any:
     """Run one scoped Claude call and return its validated JSON output.
 
@@ -285,7 +300,7 @@ def run_call(
     try:
         for attempt in range(MAX_RETRIES + 1):
             raw = _call_api(
-                client, model, max_tokens, template, structured_input, raw, val_error
+                client, model, max_tokens, template, structured_input, raw, val_error, tools
             )
             try:
                 validated = _parse_and_validate(raw, template.output_schema)

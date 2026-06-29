@@ -83,6 +83,40 @@ _CANNED: dict[str, dict] = {
         "concept_names": ["Discounting"],
         "rationale": "PV = 500 / 1.08^2 = 428.67.",
     },
+    "assess_standardization": {
+        "standardization": "high",
+        "query_terms": [
+            "net present value practice problem",
+            "discounted cash flow exam question",
+            "IRR vs NPV multiple choice",
+        ],
+        "rationale": "Corporate-finance valuation is highly standardized; canonical NPV/IRR "
+        "questions are abundant online.",
+    },
+    "harvest_web": {
+        "items": [
+            {
+                "stem": "An investment pays $1,100 one year from now. At an 8% discount rate, "
+                "what is its present value?",
+                "format": "numeric",
+                "answer_key": "1018.52",
+                "concept_names": ["Discounting"],
+                "rationale": "PV = 1100 / 1.08 = 1018.52.",
+            },
+            {
+                "stem": "A project has NPV of $0 at a 14% discount rate. What does 14% represent?",
+                "format": "mc",
+                "options": [
+                    "The project's internal rate of return",
+                    "The project's payback period",
+                    "The risk-free rate",
+                    "The project's accounting rate of return",
+                ],
+                "answer_key": "The project's internal rate of return",
+                "concept_names": ["Internal Rate of Return"],
+            },
+        ]
+    },
     "verify_item": {
         "tests_intended_concept": True,
         "answer_key_correct": True,

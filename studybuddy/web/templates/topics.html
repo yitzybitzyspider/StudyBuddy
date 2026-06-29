@@ -2,10 +2,15 @@
 {% block content %}
 <h1>Topics — {{ subject }}</h1>
 {% if summary %}<p class="ok">Ingested <b>{{ summary.concepts }}</b> concepts and <b>{{ summary.items }}</b> real questions from {{ summary.files | join(', ') }}.</p>{% endif %}
+{% if harvest %}<p class="ok">Web harvest ({{ harvest.standardization }} standardization, {{ harvest.searches }} search(es)): added <b>{{ harvest.items }}</b> real question(s) to the bank.</p>{% endif %}
 {% if rows %}
   <ul class="tree">
     {% for depth, name in rows %}<li class="d{{ depth }}">{{ name }}</li>{% endfor %}
   </ul>
+  <form method="post" action="{{ url_for('harvest_web_view', subject=subject) }}" class="card">
+    <p class="muted">Pull more real practice questions from the web into the bank{% if not offline %} (spends API budget){% endif %}.</p>
+    <button type="submit">Find more questions on the web →</button>
+  </form>
   <form method="post" action="{{ url_for('compose_view', subject=subject) }}" class="card">
     <label>Diagnostic size <input type="number" name="size" value="6" min="1" max="40"></label>
     <button type="submit">Compose diagnostic →</button>

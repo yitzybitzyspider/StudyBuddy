@@ -373,6 +373,66 @@ def _templates() -> list[PromptTemplate]:
                 "owns the schedule and time math; write only the content."
             ),
         ),
+        PromptTemplate(
+            id=PromptTask.assess_standardization.value,
+            task=PromptTask.assess_standardization,
+            version="v1",
+            input_schema={
+                "type": "object",
+                "required": ["subject"],
+                "properties": {
+                    "subject": {"type": "string"},
+                    "concept_names": {"type": "array", "items": {"type": "string"}},
+                    "sample_text": {"type": "string"},
+                },
+                "additionalProperties": True,
+            },
+            output_schema={
+                "type": "object",
+                "required": ["standardization", "query_terms"],
+                "properties": {
+                    "standardization": {"enum": ["low", "medium", "high"]},
+                    "query_terms": {"type": "array", "items": {"type": "string"}},
+                    "rationale": {"type": "string"},
+                },
+                "additionalProperties": False,
+            },
+            body=(
+                "Judge how STANDARDIZED this exam is, from the subject and question style. "
+                "high = a public standardized test with lots of practice material online; "
+                "low = a professor-specific exam where the best source might be a forum thread. "
+                "Return the level plus a few good web search query terms for finding similar real "
+                "questions, and a one-line rationale."
+            ),
+        ),
+        PromptTemplate(
+            id=PromptTask.harvest_web.value,
+            task=PromptTask.harvest_web,
+            version="v1",
+            input_schema={
+                "type": "object",
+                "required": ["subject", "query_terms"],
+                "properties": {
+                    "subject": {"type": "string"},
+                    "query_terms": {"type": "array", "items": {"type": "string"}},
+                    "concept_names": {"type": "array", "items": {"type": "string"}},
+                },
+                "additionalProperties": True,
+            },
+            output_schema={
+                "type": "object",
+                "required": ["items"],
+                "properties": {"items": {"type": "array", "items": ITEM_OUT_SCHEMA}},
+                "additionalProperties": False,
+            },
+            body=(
+                "Use web search to find REAL practice/exam questions on these topics, then return "
+                "them as items tagged to the concept(s) they test, each with its answer key and a "
+                "source pointer (kind 'web', ref = the page URL). Prefer real, vetted questions "
+                "(textbook problem sets, past exams, reputable practice sites) over anything you "
+                "invent. Only include questions you actually found, with their source."
+            ),
+        ),
     ]
 
 

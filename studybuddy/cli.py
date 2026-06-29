@@ -23,6 +23,7 @@ from . import diagnostic as diagnostic_mod
 from . import ingest as ingest_mod
 from . import intake as intake_mod
 from . import paths, plan as plan_mod, seed, store
+from . import websearch as websearch_mod
 from .models import MaterialType, PromptTask
 from .runlog import RunLog
 from .wrapper import ClaudeCallError, run_call
@@ -228,6 +229,19 @@ def cmd_steer(args: argparse.Namespace, client: Any | None = None) -> int:
     return 0
 
 
+def cmd_harvest_web(args: argparse.Namespace, client: Any | None = None) -> int:
+    root = paths.knowledge_root(args.root)
+    print("Searching the web for more real questions (this spends API budget)…")
+    try:
+        result = websearch_mod.web_harvest(args.subject, root=root, client=client)
+    except (ValueError, ClaudeCallError) as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 1
+    print(f"Standardization: {result['standardization']} → {result['searches']} web search(es)")
+    print(f"Added {result['items']} new question(s) to subject '{args.subject}'.")
+    return 0
+
+
 def cmd_serve(args: argparse.Namespace) -> int:
     try:
         from .web import create_app
@@ -361,6 +375,13 @@ def build_parser() -> argparse.ArgumentParser:
     steer_group.add_argument("--fewer", action="store_true", help="a smaller follow-up batch")
     steer_group.add_argument("--shift", metavar="TOPIC", default=None, help="shift focus to a topic")
     p_steer.set_defaults(func=cmd_steer)
+
+    p_harvest = sub.add_parser(
+        "harvest-web", parents=[common],
+        help="Phase 2: pull additional real questions from the web (opt-in, spends API budget)",
+    )
+    p_harvest.add_argument("--subject", required=True)
+    p_harvest.set_defaults(func=cmd_harvest_web)
 
     p_serve = sub.add_parser("serve", parents=[common], help="run the local web UI (browser)")
     p_serve.add_argument("--host", default="127.0.0.1")

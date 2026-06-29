@@ -107,6 +107,9 @@ class PromptTask(str, Enum):
     grade_response = "grade_response"
     interpret_gaps = "interpret_gaps"
     compose_plan = "compose_plan"
+    # Phase 2 web-search sourcing (realized via Claude's web_search tool).
+    assess_standardization = "assess_standardization"
+    harvest_web = "harvest_web"
 
 
 # --------------------------------------------------------------------------------------

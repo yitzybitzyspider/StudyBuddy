@@ -99,10 +99,11 @@ diagnostic, administer, diagnose, plan, steer) and adds no pipeline logic. Optio
 | G2 | Discrimination deferred | `Item.calibration.discrimination` stays `null`. True discrimination is a cross-respondent statistic; with one learner it can't be computed without faking rigor, so we don't. Revisit under multi-user (NFR-2). | philosophy §9 (honesty over false rigor) |
 | G3 | Sourcing order | The diagnostic composer fills gaps **retrieve → adapt → generate → verify**: reuse a real item, `adapt_item` (new numbers/context) when one exists for the concept, `generate_item` only when nothing is adaptable; `verify_item` gates everything adapted/generated. | philosophy §4 (retrieve before generate) |
 | G4 | Acceptance metrics | Each verify outcome accrues into the template version's `metrics` (attempts, accepts, `acceptance_rate`) via `registry.record_acceptance` — Track A (auto). It never flips the `current` default; promoting a version stays Track B (human-gated). | philosophy §8 (two tracks) |
+| G5 | Web-search harvesting | Realized via Claude's **server-side `web_search` tool** (`web_search_20260209`), not a separate search API/account — same `ANTHROPIC_API_KEY`. The wrapper gained an optional `tools=[...]` param and a bounded `pause_turn` continuation loop; strict-JSON output + run-log are unchanged. Two new templates registered (registry → 11): `assess_standardization` (subject/material → `{standardization, query_terms[], rationale}`) and `harvest_web` (`{subject, query_terms, concept_names}` + the tool → real questions as items, `provenance.origin=retrieved`, `source=Reference(kind=web, ref=URL)`). Driver `websearch.web_harvest` sizes breadth to standardization (low→1 / medium→2 / high→3 searches). **Opt-in** (cost control): never auto-run by `ingest`; only the `harvest-web` CLI command or the topics-page UI button. | philosophy §4 (retrieve before generate); spec framed web search as deterministic sourcing — this is the chosen implementation; build-plan Phase 2 |
 
 ### D. Deferred (not built in Phase 0, per the build plan)
 
 Dependency map (Stage 2 / Phase 3), adaptive sampling (Phase 3), spacing engine & time
-math (Phase 4), in-system execution loop (Phase 4), web UI (Phase 4), web-search
-harvesting (Phase 2), the proposals engine (Phase 5). Out of scope entirely: multi-user,
+math (Phase 4), in-system execution loop (Phase 4), web UI (Phase 4), the proposals
+engine (Phase 5). (Web-search harvesting was built in Phase 2, Loop 15 — see G5.) Out of scope entirely: multi-user,
 accounts, downloads, token budgeting, gamification, lecture transcription.

@@ -1,0 +1,55 @@
+{
+  "id": "assess_standardization",
+  "task": "assess_standardization",
+  "version": "v1",
+  "input_schema": {
+    "type": "object",
+    "required": [
+      "subject"
+    ],
+    "properties": {
+      "subject": {
+        "type": "string"
+      },
+      "concept_names": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "sample_text": {
+        "type": "string"
+      }
+    },
+    "additionalProperties": true
+  },
+  "output_schema": {
+    "type": "object",
+    "required": [
+      "standardization",
+      "query_terms"
+    ],
+    "properties": {
+      "standardization": {
+        "enum": [
+          "low",
+          "medium",
+          "high"
+        ]
+      },
+      "query_terms": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "rationale": {
+        "type": "string"
+      }
+    },
+    "additionalProperties": false
+  },
+  "body": "Judge how STANDARDIZED this exam is, from the subject and question style. high = a public standardized test with lots of practice material online; low = a professor-specific exam where the best source might be a forum thread. Return the level plus a few good web search query terms for finding similar real questions, and a one-line rationale.",
+  "examples": [],
+  "metrics": {}
+}

@@ -1,0 +1,117 @@
+{
+  "id": "harvest_web",
+  "task": "harvest_web",
+  "version": "v1",
+  "input_schema": {
+    "type": "object",
+    "required": [
+      "subject",
+      "query_terms"
+    ],
+    "properties": {
+      "subject": {
+        "type": "string"
+      },
+      "query_terms": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "concept_names": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+    "additionalProperties": true
+  },
+  "output_schema": {
+    "type": "object",
+    "required": [
+      "items"
+    ],
+    "properties": {
+      "items": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": [
+            "stem",
+            "format",
+            "answer_key",
+            "concept_names"
+          ],
+          "properties": {
+            "stem": {
+              "type": "string"
+            },
+            "format": {
+              "enum": [
+                "mc",
+                "numeric",
+                "short",
+                "essay",
+                "application"
+              ]
+            },
+            "options": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "answer_key": {},
+            "rationale": {
+              "type": "string"
+            },
+            "concept_names": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "source": {
+              "type": "object",
+              "required": [
+                "kind",
+                "ref"
+              ],
+              "properties": {
+                "kind": {
+                  "enum": [
+                    "material",
+                    "web",
+                    "item",
+                    "run",
+                    "prompt",
+                    "concept"
+                  ]
+                },
+                "ref": {
+                  "type": "string"
+                },
+                "locator": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "additionalProperties": false
+            },
+            "grading_spec": {
+              "type": "object"
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+    "additionalProperties": false
+  },
+  "body": "Use web search to find REAL practice/exam questions on these topics, then return them as items tagged to the concept(s) they test, each with its answer key and a source pointer (kind 'web', ref = the page URL). Prefer real, vetted questions (textbook problem sets, past exams, reputable practice sites) over anything you invent. Only include questions you actually found, with their source.",
+  "examples": [],
+  "metrics": {}
+}

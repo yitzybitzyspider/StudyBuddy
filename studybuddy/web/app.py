@@ -28,6 +28,7 @@ from .. import diagnostic as diagnostic_mod
 from .. import ingest as ingest_mod
 from .. import intake as intake_mod
 from .. import paths, plan as plan_mod, seed, store
+from .. import websearch as websearch_mod
 from ..models import MaterialType
 from ..wrapper import ClaudeCallError
 
@@ -178,6 +179,18 @@ def create_app(root=None) -> Flask:
     def topics_view(subject):
         return render_template(
             "topics.html", subject=subject, summary=None,
+            rows=_topic_rows(store.load_concepts(subject, root=_root())),
+            status=_subject_status(subject),
+        )
+
+    @app.post("/s/<subject>/harvest-web")
+    def harvest_web_view(subject):
+        try:
+            result = websearch_mod.web_harvest(subject, root=_root())
+        except (ValueError, ClaudeCallError) as e:
+            return _err(f"Web harvest failed: {e}", subject)
+        return render_template(
+            "topics.html", subject=subject, summary=None, harvest=result,
             rows=_topic_rows(store.load_concepts(subject, root=_root())),
             status=_subject_status(subject),
         )
