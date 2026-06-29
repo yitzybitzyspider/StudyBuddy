@@ -269,14 +269,17 @@ def create_app(root=None) -> Flask:
         learner = store.load_learner(root=_root())
         if learner.gap_profile is None:
             return _err("Run the diagnosis first.", subject)
+        resolution = request.args.get("resolve")  # compress | extend (Stage 8)
+        if resolution not in (None, "compress", "extend"):
+            resolution = None
         try:
-            result = plan_mod.compose(subject, root=_root())
+            result = plan_mod.compose(subject, root=_root(), resolution=resolution)
         except (ValueError, ClaudeCallError) as e:
             return _err(f"Plan generation failed: {e}", subject)
         markdown = result["markdown_path"].read_text()
         return render_template(
             "plan.html", subject=subject, markdown=markdown,
-            gaps=learner.gap_profile.entries,
+            gaps=learner.gap_profile.entries, budget=result.get("budget"),
         )
 
     @app.post("/s/<subject>/steer")

@@ -8,6 +8,13 @@
 </div>
 {% endif %}
 <div class="plan">{{ markdown | md | safe }}</div>
+{% if budget and budget.status == 'over' %}
+<div class="steer">
+  <b>Doesn't fit ({{ budget.gap_hours }} h short):</b>
+  <a class="button" href="{{ url_for('plan_view', subject=subject, resolve='compress') }}">Compress to fit</a>
+  <a class="button" href="{{ url_for('plan_view', subject=subject, resolve='extend') }}">Extend the time</a>
+</div>
+{% endif %}
 <div class="steer">
   <b>Steer:</b>
   <form method="post" action="{{ url_for('steer_view', subject=subject) }}">

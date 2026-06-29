@@ -235,13 +235,22 @@ def cmd_sample(args: argparse.Namespace, client: Any | None = None) -> int:
 
 def cmd_plan(args: argparse.Namespace, client: Any | None = None) -> int:
     root = paths.knowledge_root(args.root)
+    resolution = "compress" if args.compress else "extend" if args.extend else None
     try:
-        result = plan_mod.compose(args.subject, root=root, client=client, learner_id=args.learner)
+        result = plan_mod.compose(
+            args.subject, root=root, client=client, learner_id=args.learner, resolution=resolution
+        )
     except (ValueError, ClaudeCallError) as e:
         print(f"error: {e}", file=sys.stderr)
         return 1
     plan = result["study_plan"]
     print(f"Study plan ({len(plan.topics)} topics) written to {result['markdown_path']}")
+    budget = result.get("budget")
+    if budget:
+        print(f"\nTime check: {budget['message']}")
+        if budget.get("status") == "over" and not resolution:
+            print("  → choose: studybuddy plan --subject "
+                  f"{args.subject} --compress   (or --extend)")
     if result["overview"]:
         print(f"\n{result['overview']}")
     return 0
@@ -419,6 +428,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_plan.add_argument("--subject", required=True)
     p_plan.add_argument("--learner", default=store.DEFAULT_LEARNER)
+    plan_group = p_plan.add_mutually_exclusive_group()
+    plan_group.add_argument("--compress", action="store_true", help="trim scope to fit the time")
+    plan_group.add_argument("--extend", action="store_true", help="keep full scope, extend the time")
     p_plan.set_defaults(func=cmd_plan)
 
     p_steer = sub.add_parser(

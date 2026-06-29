@@ -15,7 +15,7 @@ from __future__ import annotations
 from collections import defaultdict
 
 from . import diagnostic as diagnostic_mod
-from . import store
+from . import store, timebudget as timebudget_mod
 from .models import ConstraintResolution, PlanTopic, Reference, RefKind, StudyPlan
 from .wrapper import run_call
 
@@ -30,13 +30,21 @@ def _item_sequences(concept_ids, items) -> dict[str, list[str]]:
     return by_concept
 
 
-def compose(subject: str, *, root=None, client=None, learner_id: str = store.DEFAULT_LEARNER) -> dict:
+def compose(
+    subject: str,
+    *,
+    root=None,
+    client=None,
+    learner_id: str = store.DEFAULT_LEARNER,
+    resolution: ConstraintResolution | str | None = None,
+) -> dict:
     state = store.load_learner(learner_id, root=root)
     concepts = store.load_concepts(subject, root=root)
     by_id = {c.id: c for c in concepts}
     by_name = {c.name: c.id for c in concepts}
     name_by_id = {c.id: c.name for c in concepts}
     items = store.load_items(subject, root=root)
+    item_by_id = {it.id: it for it in items}
 
     # Topics = the concepts with confirmed/hypothesized gaps; fall back to all concepts.
     gapped = []
@@ -70,9 +78,27 @@ def compose(subject: str, *, root=None, client=None, learner_id: str = store.DEF
         phase="Stage 8: compose_plan",
     )
 
-    # rough, even time allocation (precise spacing/retention math is Phase 4)
-    total = state.intake.total_study_time if (state.intake and state.intake.total_study_time) else None
-    per_topic_hours = round(total / len(gapped), 1) if total and gapped else None
+    # Honest time-to-comprehensive (Stage 8): estimate from the practice load + spacing model,
+    # compare to available time, and surface the gap. The deterministic engine owns this math.
+    gap_types_by_concept: dict[str, list[str]] = defaultdict(list)
+    if state.gap_profile:
+        for e in state.gap_profile.entries:
+            gap_types_by_concept[e.concept_id].append(e.gap_type)
+    est_topics = [
+        {
+            "concept_id": cid,
+            "name": name_by_id.get(cid, cid),
+            "item_formats": [
+                item_by_id[i].format.value for i in sequences.get(cid, []) if i in item_by_id
+            ],
+            "gap_types": gap_types_by_concept.get(cid, []),
+        }
+        for cid in gapped
+    ]
+    estimate = timebudget_mod.estimate(est_topics)
+    available = state.intake.total_study_time if state.intake else None
+    budget = timebudget_mod.reconcile(estimate["total_hours"], available)
+    hours_by_concept = {t["concept_id"]: t["hours"] for t in estimate["per_topic"]}
 
     topics = []
     prose_by_concept = {}
@@ -82,38 +108,49 @@ def compose(subject: str, *, root=None, client=None, learner_id: str = store.DEF
     for cid in gapped:
         concept = by_id.get(cid)
         source_links = list(concept.source_refs) if concept else []
+        hrs = hours_by_concept.get(cid)
         topics.append(
             PlanTopic(
                 concept_id=cid,
-                time_block=f"{per_topic_hours}h" if per_topic_hours else None,
+                time_block=f"{hrs}h" if hrs else None,
                 source_links=source_links,
                 item_sequence=sequences.get(cid, []),
                 review_schedule=[],
             )
         )
 
+    resolved = ConstraintResolution(resolution) if resolution else None
     plan = StudyPlan(
         learner_id=learner_id,
         topics=topics,
-        total_time_estimate=total,
-        constraint_resolution=None,  # honest time math + compress/extend is Phase 4
+        total_time_estimate=estimate["total_hours"],
+        constraint_resolution=resolved,
         version="v1",
     )
     state.study_plan = plan
     store.save_learner(state, root=root)
 
     md_path = _render_markdown(
-        subject, plan, content, prose_by_concept, name_by_id, root=root, learner_id=learner_id
+        subject, plan, content, prose_by_concept, name_by_id, budget,
+        root=root, learner_id=learner_id,
     )
-    return {"study_plan": plan, "markdown_path": md_path, "overview": content.get("overview", "")}
+    return {
+        "study_plan": plan,
+        "markdown_path": md_path,
+        "overview": content.get("overview", ""),
+        "budget": budget,
+    }
 
 
-def _render_markdown(subject, plan, content, prose_by_concept, name_by_id, *, root, learner_id):
+def _render_markdown(subject, plan, content, prose_by_concept, name_by_id, budget, *, root, learner_id):
     lines = [f"# Study plan — {subject}", ""]
     if content.get("overview"):
         lines += [content["overview"], ""]
-    if plan.total_time_estimate:
-        lines.append(f"_Rough budget: {plan.total_time_estimate} h total._\n")
+    if budget:
+        lines.append(f"**Time check:** {budget['message']}")
+        if plan.constraint_resolution:
+            lines.append(f"_Resolution: {plan.constraint_resolution.value}._")
+        lines.append("")
     for topic in plan.topics:
         name = name_by_id.get(topic.concept_id, topic.concept_id)
         prose = prose_by_concept.get(topic.concept_id, {})

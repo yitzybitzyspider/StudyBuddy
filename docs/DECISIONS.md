@@ -141,6 +141,14 @@ diagnostic, administer, diagnose, plan, steer) and adds no pipeline logic. Optio
 | K4 | Accrue from day one | `administer` updates the spacing schedule for each answered item (Track A, alongside calibration), so review data banks from the first diagnostic, before the Stage-9 execution loop exists. `now` is injected for deterministic tests. | build-plan rule 2 (cheap, high-leverage early); philosophy §8 |
 | K5 | Interleaving | `interleave` greedily reorders a due set so consecutive items avoid repeating a concept where possible, falling back to original order when unavoidable — spacing *and* interleaving, both deterministic (FR-F). | requirements FR-F |
 
+### L. Time-budget reality check (Stage 8)
+
+| # | Decision | Choice | Grounding |
+|---|----------|--------|-----------|
+| L1 | Honest time-to-comprehensive | `timebudget.estimate` computes hours per topic = (items × avg minutes-by-format × repetitions-to-comprehensive), where reps derive from SM-2 reaching its third growing interval, scaled by the topic's heaviest gap type. Empty topics fall back to a default item count. Every coefficient is a **stated assumption** returned in the result — rough by nature, honest by surfacing. | build-plan Phase 4; philosophy §9 |
+| L2 | Surface the gap, don't hide it | `reconcile` compares needed vs available (from intake) and returns a plain-language gap with status `fits` / `over` / `unknown`. `plan.compose` now sets `total_time_estimate` to the **needed** hours (not the available figure) and writes the time check into the plan one-pager. | spec §Stage-8 ("surface the honest gap") |
+| L3 | Compress or extend, user-chosen | When over budget, the user resolves with `--compress` / `--extend` (CLI) or the plan-page buttons (web); the choice is recorded on `StudyPlan.constraint_resolution`. The gap stays visible either way — resolution records intent, it does not paper over the math. | spec §Stage-8; FR-F (let the user choose) |
+
 ### D. Deferred (not built in Phase 0, per the build plan)
 
 Dependency map (Stage 2 / Phase 3), adaptive sampling (Phase 3), spacing engine & time
