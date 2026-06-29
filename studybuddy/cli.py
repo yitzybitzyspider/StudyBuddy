@@ -24,9 +24,9 @@ from . import diagnose as diagnose_mod
 from . import diagnostic as diagnostic_mod
 from . import ingest as ingest_mod
 from . import intake as intake_mod
-from . import paths, plan as plan_mod, sampling as sampling_mod, seed, store
+from . import paths, plan as plan_mod, proposals as proposals_mod, sampling as sampling_mod, seed, store
 from . import websearch as websearch_mod
-from .models import MaterialType, PromptTask
+from .models import MaterialType, PromptTask, ProposalStatus
 from .runlog import RunLog
 from .wrapper import ClaudeCallError, run_call
 
@@ -325,6 +325,33 @@ def cmd_record_session(args: argparse.Namespace, client: Any | None = None) -> i
     return 0
 
 
+def cmd_propose(args: argparse.Namespace) -> int:
+    root = paths.knowledge_root(args.root)
+    new = proposals_mod.generate(args.subject, root=root)
+    if not new:
+        print("No new proposals — nothing in the accrued evidence warrants one yet.")
+        return 0
+    print(f"Generated {len(new)} proposal(s):")
+    for p in new:
+        print(f"  [{p.id}] {p.kind.value}: {p.summary}")
+    print("\nReview: studybuddy proposals   (then accept/reject — human gate)")
+    return 0
+
+
+def cmd_proposals(args: argparse.Namespace) -> int:
+    root = paths.knowledge_root(args.root)
+    proposals = store.load_proposals(root=root)
+    if args.status:
+        proposals = [p for p in proposals if p.status.value == args.status]
+    if not proposals:
+        print("(no proposals)")
+        return 0
+    for p in proposals:
+        print(f"[{p.id}] {p.status.value:<8} {p.kind.value}")
+        print(f"    {p.summary}")
+    return 0
+
+
 def cmd_serve(args: argparse.Namespace) -> int:
     try:
         from .web import create_app
@@ -501,6 +528,21 @@ def build_parser() -> argparse.ArgumentParser:
     p_rec.add_argument("--learner", default=store.DEFAULT_LEARNER)
     p_rec.add_argument("--answers", default=None, help="session file (default: the composed one)")
     p_rec.set_defaults(func=cmd_record_session)
+
+    p_propose = sub.add_parser(
+        "propose", parents=[common],
+        help="Phase 5: generate evidence-backed self-improvement proposals into the inbox",
+    )
+    p_propose.add_argument("--subject", default=None, help="subject (enables difficulty recalibration)")
+    p_propose.set_defaults(func=cmd_propose)
+
+    p_proposals = sub.add_parser(
+        "proposals", parents=[common], help="Phase 5: list the proposals inbox",
+    )
+    p_proposals.add_argument(
+        "--status", default=None, choices=[s.value for s in ProposalStatus], help="filter by status"
+    )
+    p_proposals.set_defaults(func=cmd_proposals)
 
     p_serve = sub.add_parser("serve", parents=[common], help="run the local web UI (browser)")
     p_serve.add_argument("--host", default="127.0.0.1")

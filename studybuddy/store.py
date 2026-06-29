@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from . import ids, paths
-from .models import Concept, HeuristicsConfig, Item, LearnerState, Material
+from .models import Concept, HeuristicsConfig, Item, LearnerState, Material, Proposal
 
 DEFAULT_LEARNER = "learner_default"
 
@@ -155,3 +155,19 @@ def load_diagnostic(learner_id: str = DEFAULT_LEARNER, *, root=None) -> dict | N
 def learner_file(learner_id: str, name: str, *, root=None) -> Path:
     """Path to an auxiliary learner file (e.g. an editable answers template)."""
     return _learner_dir(learner_id, root=root) / name
+
+
+# --- proposals inbox (Phase 5; human-gated, Track B) ----------------------------------
+
+
+def _proposals_path(root) -> Path:
+    return paths.knowledge_root(root) / "proposals" / "inbox.json"
+
+
+def load_proposals(*, root=None) -> list[Proposal]:
+    raw = _read_json(_proposals_path(root)) or []
+    return [Proposal.model_validate(p) for p in raw]
+
+
+def save_proposals(proposals: Iterable[Proposal], *, root=None) -> None:
+    _write_json(_proposals_path(root), _dump_list(proposals))

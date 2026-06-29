@@ -38,6 +38,25 @@ def current_version(task: PromptTask | str, *, root: str | Path | None = None) -
     return version
 
 
+def list_versions(task: PromptTask | str, *, root: str | Path | None = None) -> list[str]:
+    """All registered version ids for a task (the ``vN.json`` files), sorted."""
+    d = task_dir(task, root=root)
+    if not d.is_dir():
+        return []
+    return sorted(p.stem for p in d.glob("*.json") if p.stem != "index")
+
+
+def set_current(task: PromptTask | str, version: str, *, root: str | Path | None = None) -> None:
+    """Promote ``version`` to the active default (Track B — only the human-gated apply calls this)."""
+    path = task_dir(task, root=root) / f"{version}.json"
+    if not path.exists():
+        raise TemplateNotFound(f"cannot promote missing template {_task_str(task)!r} {version!r}")
+    index = task_dir(task, root=root) / "index.json"
+    data = json.loads(index.read_text()) if index.exists() else {"task": _task_str(task)}
+    data["current"] = version
+    index.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+
 def record_acceptance(
     task: PromptTask | str, version: str, accepted: bool, *, root: str | Path | None = None
 ) -> None:

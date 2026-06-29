@@ -86,6 +86,20 @@ class ValidationStatus(str, Enum):
     malformed = "malformed"  # non-JSON or fails schema validation
 
 
+class ProposalKind(str, Enum):
+    """The self-improvement changes the system can propose (Phase 5). Each is human-gated."""
+
+    promote_prompt_version = "promote_prompt_version"
+    add_dependency_edge = "add_dependency_edge"
+    recalibrate_difficulty = "recalibrate_difficulty"
+
+
+class ProposalStatus(str, Enum):
+    open = "open"
+    accepted = "accepted"
+    rejected = "rejected"
+
+
 class RefKind(str, Enum):
     material = "material"
     web = "web"
@@ -368,6 +382,27 @@ class Intake(_Base):
     per_topic_confidence: dict[str, float] = Field(default_factory=dict)  # concept_id -> 0..1
 
 
+class Proposal(_Base):
+    """An evidence-backed, human-gated suggestion to evolve a foundational artifact (Phase 5).
+
+    The system never edits its own design/config unsupervised (philosophy §8). It writes a
+    Proposal into the inbox citing its run-log/calibration evidence; a human accepts (the
+    change is applied and changelogged) or rejects (it stays recorded, to learn from).
+    """
+
+    id: str
+    kind: ProposalKind
+    subject: Optional[str] = None
+    summary: str
+    rationale: str
+    evidence_refs: list[Reference] = Field(default_factory=list)
+    change: dict[str, Any] = Field(default_factory=dict)  # the concrete change to apply
+    status: ProposalStatus = ProposalStatus.open
+    created_at: datetime
+    decided_at: Optional[datetime] = None
+    decision_note: Optional[str] = None
+
+
 class LearnerState(_Base):
     learner_id: str
     intake: Optional[Intake] = None
@@ -393,6 +428,7 @@ ENTITIES: dict[str, type[_Base]] = {
     "HeuristicsConfig": HeuristicsConfig,
     "RunLogEntry": RunLogEntry,
     "LearnerState": LearnerState,
+    "Proposal": Proposal,
 }
 
 __all__ = [
@@ -406,6 +442,9 @@ __all__ = [
     "Disposition",
     "ValidationStatus",
     "RefKind",
+    "ProposalKind",
+    "ProposalStatus",
+    "Proposal",
     "PromptTask",
     "Reference",
     "Material",

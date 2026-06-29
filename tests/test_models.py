@@ -178,7 +178,7 @@ def test_json_round_trip(name, obj):
 
 
 def test_entities_registry_complete():
-    # The ten top-level entities (nine from spec section 3 + LearnerState, decision B4).
+    # Nine from spec section 3 + LearnerState (B4) + Proposal (Phase 5).
     assert set(m.ENTITIES) == {
         "Material",
         "Concept",
@@ -190,6 +190,7 @@ def test_entities_registry_complete():
         "HeuristicsConfig",
         "RunLogEntry",
         "LearnerState",
+        "Proposal",
     }
 
 

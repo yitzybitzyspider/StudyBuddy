@@ -157,6 +157,16 @@ diagnostic, administer, diagnose, plan, steer) and adds no pipeline logic. Optio
 | M2 | Grade once, reused | The single-item grader was extracted from `administer` (`grade_item`) and shared by Stage 5 and Stage 9, so objective/open-ended grading lives in one place. | DRY; spec §Stage-5/9 |
 | M3 | Record → reschedule → track | `execute.record_session` grades each answer, accrues calibration, **reschedules** the item via the spacing engine (Track A), and updates `LearnerState.progress` (`reviewed_total`, `sessions`, per-concept seen/correct, `last_session_at`). File-based loop (E2), CLI `study` / `record-session`, and a web Study page (step 5). | spec §Stage-9 ("track progress and reschedule"); philosophy §8 |
 
+## 2026-06-29 — Phase 5 self-improvement loop
+
+### N. Proposals generator & inbox (Loop 23)
+
+| # | Decision | Choice | Grounding |
+|---|----------|--------|-----------|
+| N1 | New artifact: `Proposal` | A `Proposal {id, kind, subject, summary, rationale, evidence_refs[], change, status, created_at, decided_at, decision_note}` is added as a first-class knowledge-layer entity (spec §3 named the inbox but no entity). Stored as a diffable list at `proposals/inbox.json`. | spec §2.2 / §ratified-promotion; philosophy §8 |
+| N2 | Three evidence sources | The generator proposes: **promote_prompt_version** (a non-current template whose `acceptance_rate` beats current by ≥0.1 over ≥5 attempts), **add_dependency_edge** (an edge recurring ≥2× in `proposals/dependency-inbox.jsonl` from H4), **recalibrate_difficulty** (a concept whose items' calibrated observed-difficulty band disagrees with its `difficulty_prior`, ≥3 items each seen ≥3×). Each carries `evidence_refs` and a concrete `change` dict. Thresholds are stated assumptions. | spec §ratified-promotion (the three named examples); philosophy §11 (cite evidence) |
+| N3 | Generate-only, never apply | `proposals.generate` only **writes** proposals (idempotent against open ones by `(kind, change)` signature). It never mutates a doc/config/registry — applying is the human-gated Loop 24. | philosophy §8 (never self-corrupting) |
+
 ### D. Deferred (not built in Phase 0, per the build plan)
 
 The **proposals engine (Phase 5)** remains — the capstone self-improvement loop with the
