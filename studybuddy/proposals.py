@@ -26,6 +26,8 @@ from collections import defaultdict
 
 from . import ids, registry, store
 from .models import (
+    DependencyEdge,
+    DependencyRelation,
     Proposal,
     ProposalKind,
     ProposalStatus,
@@ -183,3 +185,92 @@ def generate(subject: str | None = None, *, root=None) -> list[Proposal]:
     if new:
         store.save_proposals(existing + new, root=root)
     return new
+
+
+# --------------------------------------------------------------------------------------
+# The human gate (Loop 24): accept (apply + changelog) or reject (record, learn from it).
+# --------------------------------------------------------------------------------------
+
+
+class ProposalError(Exception):
+    """The proposal could not be found or applied."""
+
+
+def _changelog(root, entry: dict) -> None:
+    path = store.paths.knowledge_root(root) / "proposals" / "changelog.jsonl"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps(entry, ensure_ascii=False, default=str) + "\n")
+
+
+def _apply(proposal: Proposal, *, root) -> None:
+    """Version the relevant artifact forward. Each branch is a Track-B mutation."""
+    change = proposal.change
+    if proposal.kind is ProposalKind.promote_prompt_version:
+        registry.set_current(change["task"], change["to_version"], root=root)
+
+    elif proposal.kind is ProposalKind.add_dependency_edge:
+        subject = change["subject"]
+        concepts = store.load_concepts(subject, root=root)
+        by_id = {c.id: c for c in concepts}
+        src = by_id.get(change["from_concept"])
+        if src is None or change["to_concept"] not in by_id:
+            raise ProposalError("dependency edge references a concept not in the subject")
+        relation = DependencyRelation(change["relation"])
+        conf = float(change.get("confidence") or 0.0)
+        existing = next(
+            (e for e in src.dependency_edges
+             if e.other_concept_id == change["to_concept"] and e.relation is relation),
+            None,
+        )
+        if existing is not None:
+            existing.confidence = existing.confidence + (1 - existing.confidence) * conf
+        else:
+            src.dependency_edges.append(
+                DependencyEdge(other_concept_id=change["to_concept"], relation=relation, confidence=conf)
+            )
+        store.save_concepts(subject, list(by_id.values()), root=root)
+
+    elif proposal.kind is ProposalKind.recalibrate_difficulty:
+        subject = change["subject"]
+        concepts = store.load_concepts(subject, root=root)
+        found = False
+        for c in concepts:
+            if c.id == change["concept_id"]:
+                c.difficulty_prior = float(change["to_difficulty"])
+                found = True
+        if not found:
+            raise ProposalError("recalibration references a concept not in the subject")
+        store.save_concepts(subject, concepts, root=root)
+    else:  # pragma: no cover - enum is closed
+        raise ProposalError(f"don't know how to apply {proposal.kind}")
+
+
+def decide(proposal_id: str, accept: bool, *, note: str | None = None, root=None) -> Proposal:
+    """Accept (apply + changelog) or reject (record) a proposal — the human gate (Track B).
+
+    Accepting applies the change and versions the artifact forward with a changelog entry.
+    Rejecting records the decision; the proposal stays in the inbox so it can be learned from.
+    """
+    proposals = store.load_proposals(root=root)
+    target = next((p for p in proposals if p.id == proposal_id), None)
+    if target is None:
+        raise ProposalError(f"no proposal {proposal_id!r} in the inbox")
+    if target.status is not ProposalStatus.open:
+        raise ProposalError(f"proposal {proposal_id!r} already {target.status.value}")
+
+    if accept:
+        _apply(target, root=root)
+        target.status = ProposalStatus.accepted
+        _changelog(root, {
+            "proposal_id": target.id, "kind": target.kind.value, "subject": target.subject,
+            "change": target.change, "summary": target.summary, "note": note,
+            "applied_at": ids.utcnow().isoformat(),
+        })
+    else:
+        target.status = ProposalStatus.rejected
+
+    target.decided_at = ids.utcnow()
+    target.decision_note = note
+    store.save_proposals(proposals, root=root)
+    return target

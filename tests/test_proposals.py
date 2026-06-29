@@ -91,3 +91,76 @@ def test_generation_is_idempotent(tmp_path):
     second = proposals.generate(root=tmp_path)  # same evidence, already open
     assert len(first) == 1 and second == []
     assert len(store.load_proposals(root=tmp_path)) == 1
+
+
+def test_accept_promotes_prompt_version_and_changelogs(tmp_path):
+    _seed(tmp_path)
+    tpl = registry.load_template("generate_item", "v1", root=tmp_path)
+    v2 = tpl.model_copy(update={"version": "v2", "metrics": {
+        "attempts": 10, "accepts": 9, "acceptance_rate": 0.9}})
+    (tmp_path / "prompts" / "generate_item" / "v2.json").write_text(v2.model_dump_json(indent=2))
+    new = proposals.generate(root=tmp_path)
+    pid = next(p.id for p in new if p.kind is ProposalKind.promote_prompt_version)
+
+    decided = proposals.decide(pid, True, root=tmp_path)
+    assert decided.status is ProposalStatus.accepted
+    assert registry.current_version("generate_item", root=tmp_path) == "v2"  # applied
+    changelog = (tmp_path / "proposals" / "changelog.jsonl").read_text().strip().splitlines()
+    assert len(changelog) == 1 and json.loads(changelog[0])["proposal_id"] == pid
+
+
+def test_accept_recalibrates_difficulty(tmp_path):
+    _seed(tmp_path)
+    npv = Concept(id="concept_npv", subject="finance", name="NPV", difficulty_prior=2)
+    store.save_concepts("finance", [npv], root=tmp_path)
+    items = [
+        Item(id=ids.ulid_id("item"), concept_ids=["concept_npv"], format=ItemFormat.numeric,
+             stem="q", answer_key="1", provenance=Provenance(origin=ProvenanceOrigin.retrieved),
+             calibration=Calibration(observed_difficulty=0.9, times_seen=4))
+        for _ in range(3)
+    ]
+    store.save_items("finance", items, root=tmp_path)
+    new = proposals.generate("finance", root=tmp_path)
+    pid = next(p.id for p in new if p.kind is ProposalKind.recalibrate_difficulty)
+
+    proposals.decide(pid, True, root=tmp_path)
+    concept = store.load_concepts("finance", root=tmp_path)[0]
+    assert concept.difficulty_prior > 2  # moved toward the observed difficulty
+
+
+def test_reject_records_without_applying(tmp_path):
+    _seed(tmp_path)
+    inbox = tmp_path / "proposals" / "dependency-inbox.jsonl"
+    rec = {"subject": "finance", "from_concept": "concept_npv", "to_concept": "concept_disc",
+           "relation": "depends_on", "confidence": 0.4}
+    store.save_concepts("finance", [
+        Concept(id="concept_npv", subject="finance", name="NPV"),
+        Concept(id="concept_disc", subject="finance", name="Disc"),
+    ], root=tmp_path)
+    inbox.write_text("\n".join(json.dumps(rec) for _ in range(2)) + "\n")
+    pid = proposals.generate(root=tmp_path)[0].id
+
+    decided = proposals.decide(pid, False, note="not convinced", root=tmp_path)
+    assert decided.status is ProposalStatus.rejected and decided.decision_note == "not convinced"
+    # no edge written
+    npv = next(c for c in store.load_concepts("finance", root=tmp_path) if c.id == "concept_npv")
+    assert npv.dependency_edges == []
+    assert not (tmp_path / "proposals" / "changelog.jsonl").exists()
+
+
+def test_cannot_decide_twice(tmp_path):
+    _seed(tmp_path)
+    inbox = tmp_path / "proposals" / "dependency-inbox.jsonl"
+    rec = {"subject": "finance", "from_concept": "a", "to_concept": "b",
+           "relation": "depends_on", "confidence": 0.4}
+    store.save_concepts("finance", [
+        Concept(id="a", subject="finance", name="A"), Concept(id="b", subject="finance", name="B"),
+    ], root=tmp_path)
+    inbox.write_text("\n".join(json.dumps(rec) for _ in range(2)) + "\n")
+    pid = proposals.generate(root=tmp_path)[0].id
+    proposals.decide(pid, True, root=tmp_path)
+    try:
+        proposals.decide(pid, True, root=tmp_path)
+        assert False, "expected ProposalError"
+    except proposals.ProposalError:
+        pass

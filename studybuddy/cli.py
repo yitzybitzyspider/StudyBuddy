@@ -352,6 +352,22 @@ def cmd_proposals(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_decide(args: argparse.Namespace) -> int:
+    root = paths.knowledge_root(args.root)
+    accept = args.command == "accept"
+    try:
+        p = proposals_mod.decide(args.id, accept, note=args.note, root=root)
+    except proposals_mod.ProposalError as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 1
+    if p.status.value == "accepted":
+        print(f"Accepted [{p.id}] {p.kind.value} — applied and changelogged.")
+        print(f"  {p.summary}")
+    else:
+        print(f"Rejected [{p.id}] {p.kind.value} — recorded (kept to learn from).")
+    return 0
+
+
 def cmd_serve(args: argparse.Namespace) -> int:
     try:
         from .web import create_app
@@ -543,6 +559,15 @@ def build_parser() -> argparse.ArgumentParser:
         "--status", default=None, choices=[s.value for s in ProposalStatus], help="filter by status"
     )
     p_proposals.set_defaults(func=cmd_proposals)
+
+    for verb, helptext in (
+        ("accept", "Phase 5: accept a proposal (apply the change + changelog) — the human gate"),
+        ("reject", "Phase 5: reject a proposal (record it, kept to learn from)"),
+    ):
+        p_dec = sub.add_parser(verb, parents=[common], help=helptext)
+        p_dec.add_argument("id", help="the proposal id")
+        p_dec.add_argument("--note", default=None, help="a note recorded with the decision")
+        p_dec.set_defaults(func=cmd_decide)
 
     p_serve = sub.add_parser("serve", parents=[common], help="run the local web UI (browser)")
     p_serve.add_argument("--host", default="127.0.0.1")

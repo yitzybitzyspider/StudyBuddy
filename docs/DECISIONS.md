@@ -167,6 +167,14 @@ diagnostic, administer, diagnose, plan, steer) and adds no pipeline logic. Optio
 | N2 | Three evidence sources | The generator proposes: **promote_prompt_version** (a non-current template whose `acceptance_rate` beats current by ≥0.1 over ≥5 attempts), **add_dependency_edge** (an edge recurring ≥2× in `proposals/dependency-inbox.jsonl` from H4), **recalibrate_difficulty** (a concept whose items' calibrated observed-difficulty band disagrees with its `difficulty_prior`, ≥3 items each seen ≥3×). Each carries `evidence_refs` and a concrete `change` dict. Thresholds are stated assumptions. | spec §ratified-promotion (the three named examples); philosophy §11 (cite evidence) |
 | N3 | Generate-only, never apply | `proposals.generate` only **writes** proposals (idempotent against open ones by `(kind, change)` signature). It never mutates a doc/config/registry — applying is the human-gated Loop 24. | philosophy §8 (never self-corrupting) |
 
+### O. The accept/reject gate (Loop 24)
+
+| # | Decision | Choice | Grounding |
+|---|----------|--------|-----------|
+| O1 | One gate, two outcomes | `proposals.decide(id, accept)` is the human gate. **Accept** applies the change and versions the artifact forward; **reject** records the decision and keeps the proposal in the inbox (status `rejected`, with `decided_at`/`decision_note`) so it can be learned from. A proposal can be decided once. | spec §ratified-promotion; philosophy §8 |
+| O2 | Apply per kind | `promote_prompt_version` → `registry.set_current` (flips the `current` default — the only place that happens); `add_dependency_edge` → add/accrue the edge on the concept model; `recalibrate_difficulty` → set the concept's `difficulty_prior`. All Track B (only the gate calls these). | spec §ratified-promotion (the three examples) |
+| O3 | Changelog on accept | Each accepted proposal appends a `proposals/changelog.jsonl` entry (`proposal_id, kind, change, summary, note, applied_at`), so every foundational change is traceable to its evidence and the human decision. Rejected proposals leave the artifact untouched. | spec ("version the artifact forward with a changelog entry"); philosophy §11 |
+
 ### D. Deferred (not built in Phase 0, per the build plan)
 
 The **proposals engine (Phase 5)** remains — the capstone self-improvement loop with the
