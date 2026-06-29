@@ -75,7 +75,11 @@ def test_grades_objective_and_open_ended(tmp_path, fake_client):
     # rollup + calibration accrual
     rollup = result["result"].per_concept_rollup["concept_npv"]
     assert rollup["seen"] == 3 and rollup["correct"] == 2
-    assert all(i.calibration.times_seen == 1 for i in store.load_items("finance", root=tmp_path))
+    served = store.load_items("finance", root=tmp_path)
+    assert all(i.calibration.times_seen == 1 for i in served)
+    # Phase 2: the full calibration accrues, not just times_seen
+    assert all(i.calibration.observed_difficulty is not None for i in served)
+    assert all(i.calibration.confidence is not None for i in served)
 
 
 def test_blank_response_is_incorrect_and_flagged(tmp_path):

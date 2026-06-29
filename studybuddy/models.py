@@ -321,6 +321,8 @@ class HeuristicsConfig(_Base):
     weighting_coeffs: dict[str, Any]
     sampling_rules: dict[str, Any]
     stopping_rule: dict[str, Any]
+    # Track-A calibration knobs (Phase 2). Defaulted so older config files still load.
+    calibration: dict[str, Any] = Field(default_factory=lambda: {"confidence_k": 4})
 
 
 # --------------------------------------------------------------------------------------

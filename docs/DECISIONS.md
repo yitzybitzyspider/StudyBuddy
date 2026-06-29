@@ -89,6 +89,15 @@ diagnostic, administer, diagnose, plan, steer) and adds no pipeline logic. Optio
 (`pip install -e ".[web]"`). Honors `STUDYBUDDY_OFFLINE` like the CLI. The deeper Phase-4 work
 (spacing engine, honest time math, in-system execution loop) and Phases 2–3 remain as planned.
 
+## 2026-06-29 — Phase 2 sourcing & calibration
+
+### G. Calibration & sourcing decisions (Track A)
+
+| # | Decision | Choice | Grounding |
+|---|----------|--------|-----------|
+| G1 | Calibration accrual | Each answer accrues `times_seen`, `correct_rate`, `observed_difficulty` (= 1 − correct_rate), and `confidence` (saturates with exposure via `calibration.confidence_k` in the heuristics config). All Track A (auto, no sign-off). | philosophy §8 (auto-accrual track); build-plan Phase 2 |
+| G2 | Discrimination deferred | `Item.calibration.discrimination` stays `null`. True discrimination is a cross-respondent statistic; with one learner it can't be computed without faking rigor, so we don't. Revisit under multi-user (NFR-2). | philosophy §9 (honesty over false rigor) |
+
 ### D. Deferred (not built in Phase 0, per the build plan)
 
 Dependency map (Stage 2 / Phase 3), adaptive sampling (Phase 3), spacing engine & time

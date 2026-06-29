@@ -13,6 +13,7 @@ import json
 from collections import defaultdict
 from pathlib import Path
 
+from . import calibration as calibration_mod
 from . import diagnostic as diagnostic_mod
 from . import ids, store
 from .models import DiagnosticResult, Item, ItemFormat, ItemResponse
@@ -39,15 +40,6 @@ def _auto_grade(item: Item, response) -> bool:
     return _norm(response) == _norm(item.answer_key)  # mc: option text/letter match
 
 
-def _update_calibration(item: Item, correct: bool) -> None:
-    cal = item.calibration
-    prev_seen = cal.times_seen
-    prev_correct = (cal.correct_rate or 0.0) * prev_seen
-    cal.times_seen = prev_seen + 1
-    cal.correct_rate = (prev_correct + (1.0 if correct else 0.0)) / cal.times_seen
-    cal.updated_at = ids.utcnow()
-
-
 def administer(
     subject: str,
     *,
@@ -62,6 +54,7 @@ def administer(
 
     bank = {i.id: i for i in store.load_items(subject, root=root)}
     diag = store.load_diagnostic(learner_id, root=root) or {}
+    confidence_k = float(store.load_heuristics(root=root).calibration.get("confidence_k", 4))
 
     responses: list[ItemResponse] = []
     feedback: list[dict] = []
@@ -114,7 +107,7 @@ def administer(
             )
         )
         feedback.append(entry)
-        _update_calibration(item, correct)
+        calibration_mod.update(item, correct, confidence_k=confidence_k)
         for cid in item.concept_ids:
             r = rollup[cid]
             r["seen"] += 1

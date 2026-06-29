@@ -418,6 +418,11 @@ def _heuristics() -> HeuristicsConfig:
             "max_adaptive_batches": 4,
             "_note": "placeholder stopping rule; confidence target is an open question (spec §7)",
         },
+        calibration={
+            "confidence_k": 4,
+            "_note": "Track A: confidence saturates with times_seen via k. discrimination is "
+            "deferred (cross-respondent stat; not computable for one user, philosophy §9).",
+        },
     )
 
 
