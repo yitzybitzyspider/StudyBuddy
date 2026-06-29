@@ -15,7 +15,7 @@ from pathlib import Path
 
 from . import calibration as calibration_mod
 from . import diagnostic as diagnostic_mod
-from . import ids, store
+from . import ids, spacing as spacing_mod, store
 from .models import DiagnosticResult, Item, ItemFormat, ItemResponse
 from .wrapper import run_call
 
@@ -58,6 +58,7 @@ def administer(
 
     responses: list[ItemResponse] = []
     feedback: list[dict] = []
+    qualities: list[tuple[str, int]] = []  # (item_id, SM-2 quality) for the spacing engine
     rollup: dict[str, dict] = defaultdict(lambda: {"seen": 0, "correct": 0, "blanks": 0})
 
     for q in data.get("questions", []):
@@ -108,6 +109,9 @@ def administer(
         )
         feedback.append(entry)
         calibration_mod.update(item, correct, confidence_k=confidence_k)
+        qualities.append(
+            (item.id, spacing_mod.quality_from_outcome(correct, blank=blank, felt_lucky=felt_lucky))
+        )
         for cid in item.concept_ids:
             r = rollup[cid]
             r["seen"] += 1
@@ -127,6 +131,9 @@ def administer(
 
     state = store.load_learner(learner_id, root=root)
     state.diagnostic_results.append(result)
+    now = ids.utcnow()  # spacing accrual (Track A): schedule each answered item for review
+    for item_id, quality in qualities:
+        spacing_mod.update_schedule(state, item_id, quality, now=now)
     store.save_learner(state, root=root)
     store.save_items(subject, list(bank.values()), root=root)  # persist calibration updates
 

@@ -129,6 +129,18 @@ diagnostic, administer, diagnose, plan, steer) and adds no pipeline logic. Optio
 | J1 | Band-aware classification | `_classify` now buckets a concept's answered items by **difficulty band** (the `difficulty_scale.bands` from the heuristics config) and applies the band-aware threshold rules already seeded but previously unused: `foundational` when the **easy**-band correct_rate is below `foundational.easy_band_correct_rate_below`; `depth` when **easy/medium** is solid (≥ `depth.easy_medium_correct_rate_at_least`) but **hard** breaks (< `depth.hard_correct_rate_below`). A multi-step concept can now surface foundational *and* depth from the same diagnostic (B1), instead of one averaged verdict. | build-plan Phase 3 ("material-aware … one step foundational, another depth"); spec §Stage-6 |
 | J2 | Per-item difficulty source | An item's 1–5 difficulty is taken from, in order: its **calibrated** `observed_difficulty` (Track A), else the concept's `difficulty_prior`, else a per-format proxy. Falls back to the aggregate `correct_rate` rule when a concept's banded data is too thin (e.g. a single item / single band), preserving Phase-1 behavior. | philosophy §9 (use real signal where it exists, don't fake it); G1 |
 
+## 2026-06-29 — Phase 4 plan & execution
+
+### K. Spacing & interleaving engine (Stage 8/9)
+
+| # | Decision | Choice | Grounding |
+|---|----------|--------|-----------|
+| K1 | SM-2 scheduler | `studybuddy/spacing.py` implements a standard SM-2 review card per item `{ease, interval, repetitions, due, last_quality, reviews}`. Interval grows 1→6→`round(interval·ease)` on passes; a lapse (quality < 3) resets reps and interval to 1; ease updates by the SM-2 formula floored at 1.3. **Fully deterministic — no Claude call touches scheduling.** | build-plan Phase 4 ("SM-2 style is a fine basis"); spec §Stage-8 (engine owns spacing) |
+| K2 | Honest quality mapping | A graded answer maps to SM-2 quality: confident-correct = 5, correct-but-felt-lucky = 3 (passes but returns sooner), wrong = 2, blank = 0. The felt-lucky signal feeds spacing as well as the overconfidence gap. | philosophy §9; FR-C |
+| K3 | Schedule is git JSON | Cards live on `LearnerState.spacing_schedule` (keyed by item id), ISO-8601 UTC due dates — plain JSON under git like every other artifact. | A2 |
+| K4 | Accrue from day one | `administer` updates the spacing schedule for each answered item (Track A, alongside calibration), so review data banks from the first diagnostic, before the Stage-9 execution loop exists. `now` is injected for deterministic tests. | build-plan rule 2 (cheap, high-leverage early); philosophy §8 |
+| K5 | Interleaving | `interleave` greedily reorders a due set so consecutive items avoid repeating a concept where possible, falling back to original order when unavoidable — spacing *and* interleaving, both deterministic (FR-F). | requirements FR-F |
+
 ### D. Deferred (not built in Phase 0, per the build plan)
 
 Dependency map (Stage 2 / Phase 3), adaptive sampling (Phase 3), spacing engine & time
