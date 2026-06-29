@@ -228,6 +228,20 @@ def cmd_steer(args: argparse.Namespace, client: Any | None = None) -> int:
     return 0
 
 
+def cmd_serve(args: argparse.Namespace) -> int:
+    try:
+        from .web import create_app
+    except ImportError:
+        print("error: the web UI needs Flask. Install it with: pip install -e \".[web]\"",
+              file=sys.stderr)
+        return 1
+    root = paths.knowledge_root(args.root)
+    app = create_app(root=root)
+    print(f"StudyBuddy UI → http://{args.host}:{args.port}   (knowledge layer: {root})")
+    app.run(host=args.host, port=args.port, debug=False)
+    return 0
+
+
 def cmd_show_runlog(args: argparse.Namespace) -> int:
     root = paths.knowledge_root(args.root)
     entries = RunLog(root).read_all()
@@ -347,6 +361,11 @@ def build_parser() -> argparse.ArgumentParser:
     steer_group.add_argument("--fewer", action="store_true", help="a smaller follow-up batch")
     steer_group.add_argument("--shift", metavar="TOPIC", default=None, help="shift focus to a topic")
     p_steer.set_defaults(func=cmd_steer)
+
+    p_serve = sub.add_parser("serve", parents=[common], help="run the local web UI (browser)")
+    p_serve.add_argument("--host", default="127.0.0.1")
+    p_serve.add_argument("--port", type=int, default=5000)
+    p_serve.set_defaults(func=cmd_serve)
 
     p_log = sub.add_parser("show-runlog", parents=[common], help="print the run log")
     p_log.add_argument("-n", "--limit", type=int, default=0, help="show only the last N entries")

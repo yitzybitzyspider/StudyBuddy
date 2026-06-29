@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Your subjects</h1>
+{% if subjects %}
+  <ul class="subjects">
+  {% for s in subjects %}<li><a href="{{ url_for('subject_home', subject=s) }}">{{ s }}</a></li>{% endfor %}
+  </ul>
+{% else %}
+  <p class="muted">No subjects yet — create one to get started.</p>
+{% endif %}
+<form method="post" action="{{ url_for('create_subject') }}" class="card">
+  <label>New subject
+    <input name="subject" placeholder="e.g. data-and-decisions" required>
+  </label>
+  <button type="submit">Create →</button>
+</form>
+{% endblock %}

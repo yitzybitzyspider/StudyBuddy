@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>2 · Intake</h1>
+<p class="muted">A short, smart intake — answer what's useful, the rest is inferred.</p>
+<form method="post" class="card">
+  <label>Exam format <input name="exam_format" placeholder="e.g. closed-book, 2 hours, mixed"></label>
+  <label>Total study time (hours) <input name="total_study_time_hours" type="number" step="any"></label>
+  <label>Daily availability (hours) <input name="daily_availability_hours" type="number" step="any"></label>
+  <label>Rough baseline <input name="baseline" placeholder="e.g. took intro stats a while ago"></label>
+  {% if concepts %}
+  <fieldset>
+    <legend>How confident are you per topic? <span class="muted">(optional)</span></legend>
+    {% for c in concepts %}
+    <div class="conf-row">
+      <span>{{ c.name }}</span>
+      <select name="conf_{{ c.id }}">
+        <option value="unrated">—</option>
+        <option value="0.1">very low</option>
+        <option value="0.3">low</option>
+        <option value="0.5">medium</option>
+        <option value="0.7">high</option>
+        <option value="0.9">very high</option>
+      </select>
+    </div>
+    {% endfor %}
+  </fieldset>
+  {% endif %}
+  <button type="submit">Save intake →</button>
+</form>
+{% endblock %}

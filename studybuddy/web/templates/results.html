@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Results — {{ subject }}</h1>
+<p class="ok"><b>{{ result.correct }} / {{ result.answered }}</b> correct.</p>
+<ol class="feedback">
+  {% for f in result.feedback %}
+  <li class="{{ 'good' if f.correct else 'bad' }}">
+    <b>{{ '✓' if f.correct else '✗' }}</b> <span class="tag">{{ f.format }}</span> {{ f.stem }}
+    {% if f.blank %}<div class="muted">(left blank)</div>{% endif %}
+    {% if not f.correct and f.correct_answer %}<div class="ans">answer: {{ f.correct_answer }}</div>{% endif %}
+    {% if f.score is defined %}<div class="muted">score {{ f.score }} · missed: {{ f.missed_facets | join(', ') or '—' }}</div>{% endif %}
+  </li>
+  {% endfor %}
+</ol>
+<form method="post" action="{{ url_for('diagnose_view', subject=subject) }}">
+  <button type="submit">Diagnose my gaps →</button>
+</form>
+{% endblock %}

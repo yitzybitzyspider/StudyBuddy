@@ -80,6 +80,27 @@ duration of a run. That's your on/off approval gate.
    unset ANTHROPIC_API_KEY
    ```
 
+---
+
+## C. Web UI (browser, full flow)
+
+A local web app over the same pipeline. Run it on your own machine:
+
+```sh
+git pull
+pip install -e ".[web]"
+export ANTHROPIC_API_KEY=sk-ant-...     # live;  or:  export STUDYBUDDY_OFFLINE=1  (no key)
+studybuddy serve                         # -> http://127.0.0.1:5000
+```
+
+Then in the browser: create a subject → upload an exam/chapter → intake → compose & take the
+diagnostic → read your plan, with more / fewer / shift steering. With `STUDYBUDDY_OFFLINE=1`
+you can click through the entire UI without a key (canned responses); with `ANTHROPIC_API_KEY`
+set it's fully live. `studybuddy serve --port 8000 --root /path/to/knowledge-layer` to change
+the port or location.
+
+---
+
 ### Notes on credentials
 
 - The SDK reads, in order: `ANTHROPIC_API_KEY` (sent as `x-api-key`), then

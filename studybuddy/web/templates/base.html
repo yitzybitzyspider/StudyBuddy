@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>StudyBuddy{% block title %}{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header>
+    <a class="brand" href="{{ url_for('index') }}">📚 StudyBuddy</a>
+    {% if offline %}<span class="badge offline">offline</span>{% else %}<span class="badge live">live</span>{% endif %}
+  </header>
+  {% if subject is defined and subject %}
+  <nav class="steps">
+    <a href="{{ url_for('ingest_view', subject=subject) }}">1 · Ingest</a>
+    <a href="{{ url_for('intake_view', subject=subject) }}">2 · Intake</a>
+    <a href="{{ url_for('diagnostic_view', subject=subject) }}">3 · Diagnostic</a>
+    <a href="{{ url_for('plan_view', subject=subject) }}">4 · Plan</a>
+  </nav>
+  {% endif %}
+  <main>{% block content %}{% endblock %}</main>
+  <footer>Thin v1 UI — every step runs the same pipeline code as the CLI.</footer>
+</body>
+</html>

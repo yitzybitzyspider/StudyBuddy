@@ -80,6 +80,15 @@ omits **exam**, but FR-A2 makes a past exam a first-class, strongly-preferred in
 `harvest_items` pulls real questions from. Added `exam` to `MaterialType`. Recorded here, not
 silently changed in the spec (philosophy §8).
 
+### F. Web UI (Phase 4, pulled forward)
+
+A minimal **Flask** web UI (`studybuddy/web/`, `studybuddy serve`) was built ahead of the
+planned phase order, at the user's request, to test the live system in a browser. It is a
+**thin presentation layer only** — it calls the existing pipeline functions (ingest, intake,
+diagnostic, administer, diagnose, plan, steer) and adds no pipeline logic. Optional dependency
+(`pip install -e ".[web]"`). Honors `STUDYBUDDY_OFFLINE` like the CLI. The deeper Phase-4 work
+(spacing engine, honest time math, in-system execution loop) and Phases 2–3 remain as planned.
+
 ### D. Deferred (not built in Phase 0, per the build plan)
 
 Dependency map (Stage 2 / Phase 3), adaptive sampling (Phase 3), spacing engine & time

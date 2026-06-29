@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>4 · Study plan — {{ subject }}</h1>
+{% if gaps %}
+<div class="gaps">
+  <b>Diagnosed gaps:</b>
+  {% for g in gaps %}<span class="gap">{{ g.concept_id }} · {{ g.gap_type }}{% if g.severity is not none %} ({{ g.severity }}){% endif %}</span>{% endfor %}
+</div>
+{% endif %}
+<div class="plan">{{ markdown | md | safe }}</div>
+<div class="steer">
+  <b>Steer:</b>
+  <form method="post" action="{{ url_for('steer_view', subject=subject) }}">
+    <input type="hidden" name="action" value="more"><button>More like these</button>
+  </form>
+  <form method="post" action="{{ url_for('steer_view', subject=subject) }}">
+    <input type="hidden" name="action" value="fewer"><button>Fewer</button>
+  </form>
+  <form method="post" action="{{ url_for('steer_view', subject=subject) }}">
+    <input type="hidden" name="action" value="shift">
+    <input name="focus" placeholder="shift focus to a topic…"><button>Shift</button>
+  </form>
+</div>
+{% endblock %}

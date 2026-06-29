@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>1 · Ingest material</h1>
+<p class="muted">Upload a past exam, chapter, syllabus, or notes (<code>.txt</code>, <code>.md</code>, <code>.pdf</code>).
+Claude reads it, extracts the topics, and harvests the real questions inside.</p>
+<form method="post" enctype="multipart/form-data" class="card">
+  <label>Files
+    <input type="file" name="material" accept=".txt,.md,.pdf" multiple required>
+  </label>
+  <label>Type
+    <select name="type">
+      <option value="exam">past exam</option>
+      <option value="textbook">textbook</option>
+      <option value="section" selected>section / chapter</option>
+      <option value="notes">lecture notes</option>
+      <option value="syllabus">syllabus</option>
+      <option value="objectives">learning objectives</option>
+    </select>
+  </label>
+  <button type="submit">Ingest →</button>
+</form>
+{% if status.topics %}<p><a href="{{ url_for('topics_view', subject=subject) }}">View {{ status.topics }} existing topics →</a></p>{% endif %}
+{% endblock %}
