@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from . import administer as administer_mod
+from . import depmap as depmap_mod
 from . import diagnose as diagnose_mod
 from . import diagnostic as diagnostic_mod
 from . import ingest as ingest_mod
@@ -110,6 +111,20 @@ def cmd_show_topics(args: argparse.Namespace) -> int:
         if c.parent_id is not None and c.parent_id not in ids_present:
             print(f"  - {c.name}")
             show(c.id, 1)
+    return 0
+
+
+def cmd_build_depmap(args: argparse.Namespace, client: Any | None = None) -> int:
+    root = paths.knowledge_root(args.root)
+    try:
+        result = depmap_mod.build(args.subject, root=root, client=client)
+    except (ValueError, ClaudeCallError) as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 1
+    print(f"Dependency map for '{args.subject}':")
+    print(f"  edges added:    {result['added']}")
+    print(f"  edges accrued:  {result['accrued']} (re-confirmed, confidence raised)")
+    print(f"  held for inbox: {result['held']} (low-confidence, awaiting the Phase-5 gate)")
     return 0
 
 
@@ -320,6 +335,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_topics.add_argument("--subject", required=True)
     p_topics.set_defaults(func=cmd_show_topics)
+
+    p_depmap = sub.add_parser(
+        "build-depmap", parents=[common],
+        help="Stage 2: build/refine the concept dependency map (merge by accruing confidence)",
+    )
+    p_depmap.add_argument("--subject", required=True)
+    p_depmap.set_defaults(func=cmd_build_depmap)
 
     p_intake = sub.add_parser(
         "intake", parents=[common],

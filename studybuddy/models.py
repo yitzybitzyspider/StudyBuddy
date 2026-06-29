@@ -326,6 +326,10 @@ class HeuristicsConfig(_Base):
     stopping_rule: dict[str, Any]
     # Track-A calibration knobs (Phase 2). Defaulted so older config files still load.
     calibration: dict[str, Any] = Field(default_factory=lambda: {"confidence_k": 4})
+    # Stage-2 dependency-map knobs (Phase 3). Defaulted so older config files still load.
+    dependency: dict[str, Any] = Field(
+        default_factory=lambda: {"edge_confidence_min": 0.6}
+    )
 
 
 # --------------------------------------------------------------------------------------

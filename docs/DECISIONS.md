@@ -101,6 +101,17 @@ diagnostic, administer, diagnose, plan, steer) and adds no pipeline logic. Optio
 | G4 | Acceptance metrics | Each verify outcome accrues into the template version's `metrics` (attempts, accepts, `acceptance_rate`) via `registry.record_acceptance` — Track A (auto). It never flips the `current` default; promoting a version stays Track B (human-gated). | philosophy §8 (two tracks) |
 | G5 | Web-search harvesting | Realized via Claude's **server-side `web_search` tool** (`web_search_20260209`), not a separate search API/account — same `ANTHROPIC_API_KEY`. The wrapper gained an optional `tools=[...]` param and a bounded `pause_turn` continuation loop; strict-JSON output + run-log are unchanged. Two new templates registered (registry → 11): `assess_standardization` (subject/material → `{standardization, query_terms[], rationale}`) and `harvest_web` (`{subject, query_terms, concept_names}` + the tool → real questions as items, `provenance.origin=retrieved`, `source=Reference(kind=web, ref=URL)`). Driver `websearch.web_harvest` sizes breadth to standardization (low→1 / medium→2 / high→3 searches). **Opt-in** (cost control): never auto-run by `ingest`; only the `harvest-web` CLI command or the topics-page UI button. | philosophy §4 (retrieve before generate); spec framed web search as deterministic sourcing — this is the chosen implementation; build-plan Phase 2 |
 
+## 2026-06-29 — Phase 3 diagnostic intelligence
+
+### H. Dependency map (Stage 2)
+
+| # | Decision | Choice | Grounding |
+|---|----------|--------|-----------|
+| H1 | Edge merge policy | The concept model is refined by **accruing confidence, never overwriting** (spec §Stage-2). Re-confirming an existing `(from, to, relation)` edge raises its confidence via **noisy-OR** (`merged = old + (1−old)·new`), monotonically toward 1; it never decreases and never duplicates. | spec §Stage-2 ("merge by accruing confidence rather than overwriting") |
+| H2 | Weak-edge gate | A **fresh** edge whose single-call confidence is below `heuristics.dependency.edge_confidence_min` (default 0.6) is **not** written into the concept model; it is appended to `proposals/dependency-inbox.jsonl` for the Phase-5 human gate. Re-confirming an **existing** edge always accrues regardless of the call's confidence (evidence is evidence). | spec §Stage-2 ("route low-confidence new edges to the proposals inbox"); philosophy §8 (human gate) |
+| H3 | Edge sanity | Only edges between **known, distinct** concepts are kept; self-loops and edges naming an unknown concept are dropped (the call can hallucinate a name). Direction stored on the `from` concept as `DependencyEdge(other_concept_id=to, relation, confidence)`. | philosophy §9 (no faked rigor); A6 |
+| H4 | Proposals-inbox stub | The Phase-5 inbox/gate is not built yet, so low-confidence edges are **held** (append-only JSONL under `proposals/`) rather than silently dropped or auto-applied. The Phase-5 engine will consume this file. | build-plan Phase 5; philosophy §8 |
+
 ### D. Deferred (not built in Phase 0, per the build plan)
 
 Dependency map (Stage 2 / Phase 3), adaptive sampling (Phase 3), spacing engine & time

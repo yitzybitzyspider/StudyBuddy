@@ -77,5 +77,9 @@
   "calibration": {
     "confidence_k": 4,
     "_note": "Track A: confidence saturates with times_seen via k. discrimination is deferred (cross-respondent stat; not computable for one user, philosophy §9)."
+  },
+  "dependency": {
+    "edge_confidence_min": 0.6,
+    "_note": "Stage 2: a fresh edge below this confidence is held for the Phase-5 proposals inbox rather than written into the concept model. Confidence on existing edges accrues (noisy-OR) toward 1 with repeated evidence."
   }
 }
