@@ -363,6 +363,9 @@ def cmd_decide(args: argparse.Namespace) -> int:
     if p.status.value == "accepted":
         print(f"Accepted [{p.id}] {p.kind.value} — applied and changelogged.")
         print(f"  {p.summary}")
+    elif accept:  # asked to accept but the philosophy gate (or apply) turned it down
+        print(f"Not applied [{p.id}] {p.kind.value}.")
+        print(f"  {p.decision_note or 'rejected'}")
     else:
         print(f"Rejected [{p.id}] {p.kind.value} — recorded (kept to learn from).")
     return 0

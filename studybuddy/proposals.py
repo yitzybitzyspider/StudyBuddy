@@ -24,7 +24,7 @@ from __future__ import annotations
 import json
 from collections import defaultdict
 
-from . import ids, registry, store
+from . import ids, philosophy, registry, store
 from .models import (
     DependencyEdge,
     DependencyRelation,
@@ -260,8 +260,22 @@ def decide(proposal_id: str, accept: bool, *, note: str | None = None, root=None
         raise ProposalError(f"proposal {proposal_id!r} already {target.status.value}")
 
     if accept:
+        # The philosophy test is the gate's floor: a principle violation overrides the metric
+        # and the human's accept (philosophy §8 — never self-corrupting). It is not bypassable.
+        verdict = philosophy.check(target, root=root)
+        if not verdict["ok"]:
+            target.status = ProposalStatus.rejected
+            reason = "; ".join(verdict["violations"])
+            target.decision_note = (
+                f"rejected by the philosophy gate: {reason}"
+                + (f" — (reviewer note: {note})" if note else "")
+            )
+            target.decided_at = ids.utcnow()
+            store.save_proposals(proposals, root=root)
+            return target
         _apply(target, root=root)
         target.status = ProposalStatus.accepted
+        target.decision_note = note
         _changelog(root, {
             "proposal_id": target.id, "kind": target.kind.value, "subject": target.subject,
             "change": target.change, "summary": target.summary, "note": note,
@@ -269,8 +283,8 @@ def decide(proposal_id: str, accept: bool, *, note: str | None = None, root=None
         })
     else:
         target.status = ProposalStatus.rejected
+        target.decision_note = note
 
     target.decided_at = ids.utcnow()
-    target.decision_note = note
     store.save_proposals(proposals, root=root)
     return target

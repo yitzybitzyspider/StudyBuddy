@@ -175,11 +175,20 @@ diagnostic, administer, diagnose, plan, steer) and adds no pipeline logic. Optio
 | O2 | Apply per kind | `promote_prompt_version` → `registry.set_current` (flips the `current` default — the only place that happens); `add_dependency_edge` → add/accrue the edge on the concept model; `recalibrate_difficulty` → set the concept's `difficulty_prior`. All Track B (only the gate calls these). | spec §ratified-promotion (the three examples) |
 | O3 | Changelog on accept | Each accepted proposal appends a `proposals/changelog.jsonl` entry (`proposal_id, kind, change, summary, note, applied_at`), so every foundational change is traceable to its evidence and the human decision. Rejected proposals leave the artifact untouched. | spec ("version the artifact forward with a changelog entry"); philosophy §11 |
 
+### P. The philosophy test in the gate (Loop 25)
+
+| # | Decision | Choice | Grounding |
+|---|----------|--------|-----------|
+| P1 | Principles override the metric | `proposals.decide` runs `philosophy.check` before applying any accept. A violation turns the accept into a **principled rejection** with the offending principle recorded in `decision_note` — "rejected even when the local metric looks good." The gate is not bypassable (no `--force`); that is the point of philosophy §8. | build-plan Phase 5; philosophy §8 |
+| P2 | Conservative, concrete checks | The checks catch corruption / faked rigor, not every bad idea: `recalibrate_difficulty` must stay within the difficulty scale (§9); `add_dependency_edge` forbids self-loops, out-of-range confidence, and edges contradicting an existing confident opposite edge (§8); `promote_prompt_version` must keep a typed strict-JSON output schema (standing rule). Human judgment owns the rest of the gate — this is the floor, not the ceiling. | philosophy §8/§9; CLAUDE.md standing rules |
+
 ### D. Deferred (not built in Phase 0, per the build plan)
 
-The **proposals engine (Phase 5)** remains — the capstone self-improvement loop with the
-human-gated proposals inbox (it will consume `proposals/dependency-inbox.jsonl` from H4).
-Already built since Phase 0: web-search harvesting (Phase 2, G5), the dependency map (Phase 3,
-H), dependency-aware diagnosis + adaptive sampling (Phase 3, I/J), the spacing engine, honest
-time math, and the in-system execution loop (Phase 4, K/L/M), plus the web UI (F). Out of scope entirely: multi-user,
+All five phases of the build plan are now built. Out of scope entirely (unchanged): multi-user,
+accounts, downloads/exports, token-budget enforcement, gamification, lecture transcription.
+Built since Phase 0: web-search harvesting (Phase 2, G5), the dependency map (Phase 3, H),
+dependency-aware diagnosis + adaptive sampling + material-aware heuristics (Phase 3, I/J),
+the spacing engine, honest time math, and the in-system execution loop (Phase 4, K/L/M), the
+web UI (F), and the self-improvement proposals engine — generator, gate, and philosophy test
+(Phase 5, N/O/P). Out of scope entirely: multi-user,
 accounts, downloads, token budgeting, gamification, lecture transcription.
