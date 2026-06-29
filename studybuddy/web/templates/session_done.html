@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>5 · Study — {{ subject }}</h1>
+{% if result %}
+  <p class="ok">Session recorded: <b>{{ result.answered }}</b> answered, <b>{{ result.correct }}</b> correct, <b>{{ result.rescheduled }}</b> rescheduled.</p>
+  {% for f in result.feedback %}
+  <div class="q">
+    <div class="q-meta">{{ '✓' if f.correct else '✗' }} {{ f.format }}</div>
+    <div class="q-stem">{{ f.stem }}</div>
+    {% if not f.correct and f.correct_answer is defined %}<div class="muted">Answer: {{ f.correct_answer }}</div>{% endif %}
+    {% if f.score is defined %}<div class="muted">Score: {{ f.score }} · missed: {{ f.missed_facets | join(', ') or '—' }}</div>{% endif %}
+  </div>
+  {% endfor %}
+  <p>{{ result.due_now }} item(s) now due.</p>
+{% else %}
+  <p class="muted">Nothing to study right now — no items due and no new items available. Compose a diagnostic or ingest more material first.</p>
+{% endif %}
+<p><a class="button" href="{{ url_for('study_view', subject=subject) }}">Study again →</a>
+   <a class="button" href="{{ url_for('subject_home', subject=subject) }}">Back</a></p>
+{% endblock %}

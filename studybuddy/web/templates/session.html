@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>5 · Study — {{ subject }}</h1>
+<p class="muted">{{ due_count }} spaced review(s), {{ new_count }} new. Items you find hard come back sooner.</p>
+<form method="post" class="card">
+  <input type="hidden" name="answers" value="1">
+  {% for q in questions %}
+  <div class="q">
+    <div class="q-meta">Q{{ loop.index }} · {{ q.format }} · <em>{{ q.concept }}</em>{% if q.review %} · <span class="gap">review</span>{% else %} · new{% endif %}</div>
+    <div class="q-stem">{{ q.stem }}</div>
+    {% if q.options %}
+      {% for o in q.options %}
+      <label class="opt"><input type="radio" name="resp_{{ q.item_id }}" value="{{ o }}"> {{ o }}</label>
+      {% endfor %}
+    {% else %}
+      <textarea name="resp_{{ q.item_id }}" rows="2" placeholder="Your answer"></textarea>
+    {% endif %}
+    <label class="lucky"><input type="checkbox" name="lucky_{{ q.item_id }}"> I guessed</label>
+  </div>
+  {% endfor %}
+  <button type="submit">Submit session →</button>
+</form>
+{% endblock %}

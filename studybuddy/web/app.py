@@ -25,6 +25,7 @@ from flask import (
 from .. import administer as administer_mod
 from .. import diagnose as diagnose_mod
 from .. import diagnostic as diagnostic_mod
+from .. import execute as execute_mod
 from .. import ingest as ingest_mod
 from .. import intake as intake_mod
 from .. import paths, plan as plan_mod, seed, store
@@ -280,6 +281,32 @@ def create_app(root=None) -> Flask:
         return render_template(
             "plan.html", subject=subject, markdown=markdown,
             gaps=learner.gap_profile.entries, budget=result.get("budget"),
+        )
+
+    @app.route("/s/<subject>/study", methods=["GET", "POST"])
+    def study_view(subject):
+        session_path = store.learner_file(
+            store.DEFAULT_LEARNER, execute_mod.SESSION_NAME, root=_root()
+        )
+        if request.method == "POST" and request.form.get("answers") and session_path.exists():
+            data = json.loads(session_path.read_text())
+            for q in data["questions"]:
+                q["response"] = request.form.get(f"resp_{q['item_id']}", "")
+                q["felt_lucky"] = request.form.get(f"lucky_{q['item_id']}") == "on"
+            session_path.write_text(json.dumps(data, indent=2))
+            try:
+                result = execute_mod.record_session(subject, answers_path=session_path, root=_root())
+            except ClaudeCallError as e:
+                return _err(f"Recording the session failed: {e}", subject)
+            return render_template("session_done.html", subject=subject, result=result)
+        # GET (or compose a fresh session)
+        info = execute_mod.next_session(subject, root=_root())
+        if not info["item_ids"]:
+            return render_template("session_done.html", subject=subject, result=None)
+        data = json.loads(session_path.read_text())
+        return render_template(
+            "session.html", subject=subject, questions=data["questions"],
+            due_count=info["due_count"], new_count=info["new_count"],
         )
 
     @app.post("/s/<subject>/steer")

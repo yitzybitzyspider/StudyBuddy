@@ -14,5 +14,6 @@
   <a class="card step" href="{{ url_for('intake_view', subject=subject) }}"><b>2 · Intake</b><span>Your exam format, time available, and per-topic confidence.</span></a>
   <a class="card step" href="{{ url_for('diagnostic_view', subject=subject) }}"><b>3 · Diagnostic</b><span>Compose a diagnostic from real questions and take it.</span></a>
   <a class="card step" href="{{ url_for('plan_view', subject=subject) }}"><b>4 · Plan</b><span>Your diagnosed gaps and a source-linked study plan.</span></a>
+  <a class="card step" href="{{ url_for('study_view', subject=subject) }}"><b>5 · Study</b><span>Spaced, interleaved practice in-system. Reviews come back when they're due.</span></a>
 </div>
 {% endblock %}

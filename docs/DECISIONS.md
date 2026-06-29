@@ -149,9 +149,19 @@ diagnostic, administer, diagnose, plan, steer) and adds no pipeline logic. Optio
 | L2 | Surface the gap, don't hide it | `reconcile` compares needed vs available (from intake) and returns a plain-language gap with status `fits` / `over` / `unknown`. `plan.compose` now sets `total_time_estimate` to the **needed** hours (not the available figure) and writes the time check into the plan one-pager. | spec §Stage-8 ("surface the honest gap") |
 | L3 | Compress or extend, user-chosen | When over budget, the user resolves with `--compress` / `--extend` (CLI) or the plan-page buttons (web); the choice is recorded on `StudyPlan.constraint_resolution`. The gap stays visible either way — resolution records intent, it does not paper over the math. | spec §Stage-8; FR-F (let the user choose) |
 
+### M. In-system execution loop (Stage 9)
+
+| # | Decision | Choice | Grounding |
+|---|----------|--------|-----------|
+| M1 | Sessions are spaced + interleaved | `execute.next_session` serves **due reviews first** (from the spacing schedule), then fills with **new** items (plan sequences, then the bank) the learner hasn't seen, and interleaves so consecutive items avoid the same concept. No downloads — practice happens in-system (FR-G1). | spec §Stage-9; build-plan Phase 4 |
+| M2 | Grade once, reused | The single-item grader was extracted from `administer` (`grade_item`) and shared by Stage 5 and Stage 9, so objective/open-ended grading lives in one place. | DRY; spec §Stage-5/9 |
+| M3 | Record → reschedule → track | `execute.record_session` grades each answer, accrues calibration, **reschedules** the item via the spacing engine (Track A), and updates `LearnerState.progress` (`reviewed_total`, `sessions`, per-concept seen/correct, `last_session_at`). File-based loop (E2), CLI `study` / `record-session`, and a web Study page (step 5). | spec §Stage-9 ("track progress and reschedule"); philosophy §8 |
+
 ### D. Deferred (not built in Phase 0, per the build plan)
 
-Dependency map (Stage 2 / Phase 3), adaptive sampling (Phase 3), spacing engine & time
-math (Phase 4), in-system execution loop (Phase 4), web UI (Phase 4), the proposals
-engine (Phase 5). (Web-search harvesting was built in Phase 2, Loop 15 — see G5.) Out of scope entirely: multi-user,
+The **proposals engine (Phase 5)** remains — the capstone self-improvement loop with the
+human-gated proposals inbox (it will consume `proposals/dependency-inbox.jsonl` from H4).
+Already built since Phase 0: web-search harvesting (Phase 2, G5), the dependency map (Phase 3,
+H), dependency-aware diagnosis + adaptive sampling (Phase 3, I/J), the spacing engine, honest
+time math, and the in-system execution loop (Phase 4, K/L/M), plus the web UI (F). Out of scope entirely: multi-user,
 accounts, downloads, token budgeting, gamification, lecture transcription.

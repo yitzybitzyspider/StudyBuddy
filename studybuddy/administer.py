@@ -40,6 +40,43 @@ def _auto_grade(item: Item, response) -> bool:
     return _norm(response) == _norm(item.answer_key)  # mc: option text/letter match
 
 
+def grade_item(item: Item, response, *, root=None, client=None) -> tuple[bool, bool, dict]:
+    """Grade one answered item. Returns (correct, blank, feedback_entry).
+
+    Shared by Stage 5 (administer) and Stage 9 (execute): objective formats auto-grade,
+    open-ended go through ``grade_response``. No persistence here — callers own writeback.
+    """
+    blank = _is_blank(response)
+    entry = {"item_id": item.id, "format": item.format.value, "stem": item.stem}
+    if blank:
+        entry.update(correct=False, blank=True, correct_answer=item.answer_key)
+        return False, True, entry
+    if item.format in _OBJECTIVE:
+        correct = _auto_grade(item, response)
+        entry.update(correct=correct, correct_answer=item.answer_key)
+        return correct, False, entry
+    graded = run_call(
+        "grade_response",
+        {
+            "response": str(response),
+            "grading_spec": item.grading_spec.model_dump(mode="json"),
+            "stem": item.stem,
+        },
+        root=root,
+        client=client,
+        phase="Stage 5: grade_response",
+    )
+    max_score = item.grading_spec.max_score or 1.0
+    correct = graded["score"] >= _OPEN_PASS_FRACTION * max_score
+    entry.update(
+        correct=correct,
+        score=graded["score"],
+        reasoning=graded.get("reasoning"),
+        missed_facets=graded.get("missed_facets", []),
+    )
+    return correct, False, entry
+
+
 def administer(
     subject: str,
     *,
@@ -68,35 +105,7 @@ def administer(
         response = q.get("response")
         felt_lucky = bool(q.get("felt_lucky", False))
         time_spent = q.get("time_spent")
-        blank = _is_blank(response)
-
-        entry = {"item_id": item.id, "format": item.format.value, "stem": item.stem}
-        if blank:
-            correct = False
-            entry.update(correct=False, blank=True, correct_answer=item.answer_key)
-        elif item.format in _OBJECTIVE:
-            correct = _auto_grade(item, response)
-            entry.update(correct=correct, correct_answer=item.answer_key)
-        else:
-            graded = run_call(
-                "grade_response",
-                {
-                    "response": str(response),
-                    "grading_spec": item.grading_spec.model_dump(mode="json"),
-                    "stem": item.stem,
-                },
-                root=root,
-                client=client,
-                phase="Stage 5: grade_response",
-            )
-            max_score = item.grading_spec.max_score or 1.0
-            correct = graded["score"] >= _OPEN_PASS_FRACTION * max_score
-            entry.update(
-                correct=correct,
-                score=graded["score"],
-                reasoning=graded.get("reasoning"),
-                missed_facets=graded.get("missed_facets", []),
-            )
+        correct, blank, entry = grade_item(item, response, root=root, client=client)
 
         responses.append(
             ItemResponse(

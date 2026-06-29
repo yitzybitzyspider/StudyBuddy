@@ -19,6 +19,7 @@ from typing import Any
 
 from . import administer as administer_mod
 from . import depmap as depmap_mod
+from . import execute as execute_mod
 from . import diagnose as diagnose_mod
 from . import diagnostic as diagnostic_mod
 from . import ingest as ingest_mod
@@ -293,6 +294,37 @@ def cmd_harvest_web(args: argparse.Namespace, client: Any | None = None) -> int:
     return 0
 
 
+def cmd_study(args: argparse.Namespace) -> int:
+    root = paths.knowledge_root(args.root)
+    result = execute_mod.next_session(
+        args.subject, root=root, learner_id=args.learner, size=args.size
+    )
+    if not result["item_ids"]:
+        print("Nothing to study — no items due and no new items available.")
+        return 0
+    print(f"Study session: {len(result['item_ids'])} items "
+          f"({result['due_count']} review, {result['new_count']} new).")
+    print(f"Answers template: {result['session_path']}")
+    print(f"Fill it in, then run: studybuddy record-session --subject {args.subject}")
+    return 0
+
+
+def cmd_record_session(args: argparse.Namespace, client: Any | None = None) -> int:
+    root = paths.knowledge_root(args.root)
+    try:
+        result = execute_mod.record_session(
+            args.subject, answers_path=args.answers, root=root, client=client,
+            learner_id=args.learner,
+        )
+    except (OSError, ClaudeCallError) as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 1
+    print(f"Session recorded: {result['answered']} answered, {result['correct']} correct, "
+          f"{result['rescheduled']} rescheduled.")
+    print(f"{result['due_now']} item(s) now due. Next: studybuddy study --subject {args.subject}")
+    return 0
+
+
 def cmd_serve(args: argparse.Namespace) -> int:
     try:
         from .web import create_app
@@ -451,6 +483,24 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_harvest.add_argument("--subject", required=True)
     p_harvest.set_defaults(func=cmd_harvest_web)
+
+    p_study = sub.add_parser(
+        "study", parents=[common],
+        help="Stage 9: assemble the next spaced + interleaved study session",
+    )
+    p_study.add_argument("--subject", required=True)
+    p_study.add_argument("--learner", default=store.DEFAULT_LEARNER)
+    p_study.add_argument("--size", type=int, default=None, help="items in the session")
+    p_study.set_defaults(func=cmd_study)
+
+    p_rec = sub.add_parser(
+        "record-session", parents=[common],
+        help="Stage 9: grade a completed study session and reschedule its items",
+    )
+    p_rec.add_argument("--subject", required=True)
+    p_rec.add_argument("--learner", default=store.DEFAULT_LEARNER)
+    p_rec.add_argument("--answers", default=None, help="session file (default: the composed one)")
+    p_rec.set_defaults(func=cmd_record_session)
 
     p_serve = sub.add_parser("serve", parents=[common], help="run the local web UI (browser)")
     p_serve.add_argument("--host", default="127.0.0.1")
