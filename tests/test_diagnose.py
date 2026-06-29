@@ -5,6 +5,8 @@ import json
 from studybuddy import diagnose, ids, seed, store
 from studybuddy.models import (
     Concept,
+    DependencyEdge,
+    DependencyRelation,
     DiagnosticResult,
     Intake,
     LearnerState,
@@ -79,6 +81,41 @@ def test_overconfidence_from_high_self_rating_low_score(tmp_path, fake_client):
     result = diagnose.diagnose("finance", root=tmp_path, client=client)
     cls = {c.concept_id: c.gap_types for c in result["classification"]}
     assert "overconfidence" in cls["concept_npv"]  # self 0.9 but cr 0.5 < 0.6
+
+
+def test_dependency_context_passed_to_interpret_gaps(tmp_path, fake_client):
+    # NPV depends_on Discounting; both tested, Discounting weak -> upstream signal
+    _setup(
+        tmp_path,
+        {
+            "concept_npv": {"seen": 4, "correct": 1, "correct_rate": 0.25, "blanks": 0},
+            "concept_discounting": {"seen": 4, "correct": 1, "correct_rate": 0.25, "blanks": 0},
+        },
+    )
+    concepts = [
+        Concept(
+            id="concept_npv", subject="finance", name="NPV",
+            dependency_edges=[DependencyEdge(
+                other_concept_id="concept_discounting",
+                relation=DependencyRelation.depends_on, confidence=0.9)],
+        ),
+        Concept(id="concept_discounting", subject="finance", name="Discounting"),
+    ]
+    store.save_concepts("finance", concepts, root=tmp_path)
+
+    client = fake_client(outputs=[INTERP_OUT])
+    diagnose.diagnose("finance", root=tmp_path, client=client)
+
+    # the interpret_gaps user message carries the prerequisite structure
+    user_msg = client.messages.calls[0]["messages"][0]["content"]
+    payload = json.loads(user_msg.split("INPUT:\n", 1)[1])
+    ctx = payload["dependency_context"]
+    assert "NPV" in ctx
+    dep = ctx["NPV"]["depends_on"][0]
+    assert dep["concept"] == "Discounting"
+    assert dep["edge_confidence"] == 0.9
+    assert dep["prerequisite_correct_rate"] == 0.25
+    assert dep["prerequisite_tested"] is True
 
 
 def test_no_results_raises(tmp_path):

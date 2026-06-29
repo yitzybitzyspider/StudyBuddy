@@ -1,17 +1,24 @@
-"""Stage 6 (thin): diagnose where understanding breaks down.
+"""Stage 6: diagnose where understanding breaks down.
 
 Deterministic heuristics first classify the per-concept results into the five gap types
 (foundational, depth, overconfidence, breadth, speed) using thresholds from the heuristics
 config. Then ``interpret_gaps`` gives a semantic read of *why* each gap exists, as
 hypotheses with confidence. The result is a flat GapProfile (one entry per concept+gap_type,
-B1). Reading gaps *inside the dependency map* is Phase 3 — Phase 1 is flat (dependency
-context is empty here).
+B1).
+
+Phase 3 (Loop 17): the interpretation now reads **inside the dependency map**. Each concept's
+prerequisites (from the Stage-2 concept model) and how the learner scored on them are handed
+to ``interpret_gaps`` as ``dependency_context``, so a downstream miss can be read as an
+upstream prerequisite gap rather than a local one.
 """
 
 from __future__ import annotations
 
+from collections import defaultdict
+
 from . import ids, store
 from .models import (
+    DependencyRelation,
     GapClassification,
     GapEntry,
     GapProfile,
@@ -80,6 +87,57 @@ def _augment_rollup(rollup, classification, confidence, name_by_id) -> dict:
     return augmented
 
 
+def _prereq_map(concepts) -> dict[str, dict[str, float]]:
+    """concept_id -> {prerequisite_concept_id: edge_confidence}.
+
+    Normalizes both edge directions: ``A depends_on B`` and ``A prereq_of B`` both mean B
+    sits below A, so B is a prerequisite of A. Keeps the highest confidence per pair.
+    """
+    prereq: dict[str, dict[str, float]] = defaultdict(dict)
+
+    def note(dependent: str, prerequisite: str, conf: float) -> None:
+        cur = prereq[dependent].get(prerequisite)
+        if cur is None or conf > cur:
+            prereq[dependent][prerequisite] = conf
+
+    for c in concepts:
+        for e in c.dependency_edges:
+            if e.relation is DependencyRelation.depends_on:
+                note(c.id, e.other_concept_id, e.confidence)
+            elif e.relation is DependencyRelation.prereq_of:
+                note(e.other_concept_id, c.id, e.confidence)
+    return prereq
+
+
+def _dependency_context(concepts, rollup, name_by_id) -> dict:
+    """Per-concept prerequisite structure + how the learner scored on each prerequisite.
+
+    Keyed by concept name (readable for the model). Only concepts present in this
+    diagnostic's rollup are included; a prerequisite's correct_rate is null if it was not
+    exercised in this diagnostic.
+    """
+    prereq = _prereq_map(concepts)
+    context: dict = {}
+    for cid in rollup:
+        edges = prereq.get(cid)
+        if not edges:
+            continue
+        depends_on = []
+        for pid, conf in edges.items():
+            pstats = rollup.get(pid) or {}
+            depends_on.append(
+                {
+                    "concept": name_by_id.get(pid, pid),
+                    "edge_confidence": round(conf, 4),
+                    "prerequisite_correct_rate": pstats.get("correct_rate"),
+                    "prerequisite_tested": pid in rollup,
+                }
+            )
+        if depends_on:
+            context[name_by_id.get(cid, cid)] = {"depends_on": depends_on}
+    return context
+
+
 def diagnose(subject: str, *, root=None, client=None, learner_id: str = store.DEFAULT_LEARNER) -> dict:
     state = store.load_learner(learner_id, root=root)
     if not state.diagnostic_results:
@@ -106,7 +164,9 @@ def diagnose(subject: str, *, root=None, client=None, learner_id: str = store.DE
             "per_concept_rollup": _augment_rollup(
                 result.per_concept_rollup, classification, confidence, name_by_id
             ),
-            "dependency_context": {},  # flat in Phase 1; dependency map is Phase 3
+            "dependency_context": _dependency_context(
+                concepts, result.per_concept_rollup, name_by_id
+            ),
             "gap_types": gap_vocab,
         },
         root=root,
