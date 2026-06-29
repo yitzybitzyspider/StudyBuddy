@@ -29,15 +29,18 @@ def test_full_flow_through_the_browser(client):
     r = c.post("/subject", data={"subject": "Finance"})
     assert r.status_code == 302 and "/s/finance" in r.headers["Location"]
 
-    # ingest a file -> topics page lists extracted concepts
+    # ingest a file -> redirects straight to intake (built from what was extracted)
     r = c.post(
         "/s/finance/ingest",
-        data={"type": "textbook", "material": (io.BytesIO(b"chapter text"), "ch5.md")},
+        data={"type": "textbook", "material": (io.BytesIO("chapter text — µ, ½, “smart quotes”".encode("utf-8")), "ch5.md")},
         content_type="multipart/form-data",
     )
-    assert r.status_code == 200
-    assert b"Net Present Value" in r.data
+    assert r.status_code == 302 and "/s/finance/intake" in r.headers["Location"]
     assert store.load_concepts("finance", root=root)
+
+    # intake page shows the extracted topics
+    r = c.get("/s/finance/intake")
+    assert r.status_code == 200 and b"Net Present Value" in r.data
 
     # intake
     r = c.post("/s/finance/intake", data={"exam_format": "closed book", "total_study_time_hours": "20"})

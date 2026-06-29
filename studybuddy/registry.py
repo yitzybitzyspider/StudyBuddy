@@ -31,7 +31,7 @@ def current_version(task: PromptTask | str, *, root: str | Path | None = None) -
     index = task_dir(task, root=root) / "index.json"
     if not index.exists():
         raise TemplateNotFound(f"no registry index for task {_task_str(task)!r} at {index}")
-    data = json.loads(index.read_text())
+    data = json.loads(index.read_text(encoding="utf-8"))
     version = data.get("current")
     if not version:
         raise TemplateNotFound(f"index.json for task {_task_str(task)!r} has no 'current' version")
@@ -52,7 +52,7 @@ def set_current(task: PromptTask | str, version: str, *, root: str | Path | None
     if not path.exists():
         raise TemplateNotFound(f"cannot promote missing template {_task_str(task)!r} {version!r}")
     index = task_dir(task, root=root) / "index.json"
-    data = json.loads(index.read_text()) if index.exists() else {"task": _task_str(task)}
+    data = json.loads(index.read_text(encoding="utf-8")) if index.exists() else {"task": _task_str(task)}
     data["current"] = version
     index.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
@@ -66,7 +66,7 @@ def record_acceptance(
     path = task_dir(task, root=root) / f"{version}.json"
     if not path.exists():
         return
-    data = json.loads(path.read_text())
+    data = json.loads(path.read_text(encoding="utf-8"))
     metrics = data.get("metrics") or {}
     metrics["attempts"] = int(metrics.get("attempts") or 0) + 1
     metrics["accepts"] = int(metrics.get("accepts") or 0) + (1 if accepted else 0)
@@ -87,4 +87,4 @@ def load_template(
     path = task_dir(task, root=root) / f"{version}.json"
     if not path.exists():
         raise TemplateNotFound(f"no template for task {_task_str(task)!r} version {version!r} at {path}")
-    return PromptTemplate.model_validate_json(path.read_text())
+    return PromptTemplate.model_validate_json(path.read_text(encoding="utf-8"))

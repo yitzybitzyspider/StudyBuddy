@@ -1,6 +1,23 @@
 {% extends "base.html" %}
 {% block content %}
-<h1>2 · Intake</h1>
+<h1>2 · Intake — {{ subject }}</h1>
+{% if added_concepts %}<p class="ok">Ingested — <b>{{ added_concepts }}</b> topics and <b>{{ added_items }}</b> questions now in this subject.</p>{% endif %}
+{% if rows %}
+<details class="card" open>
+  <summary><b>{{ rows|length }} topics extracted from your material</b> — rate your confidence below</summary>
+  <ul class="tree">
+    {% for depth, name in rows %}<li class="d{{ depth }}">{{ name }}</li>{% endfor %}
+  </ul>
+  <div class="steer">
+    <a class="button" href="{{ url_for('ingest_view', subject=subject) }}">+ Add more material</a>
+    <form method="post" action="{{ url_for('harvest_web_view', subject=subject) }}">
+      <button type="submit">Find more questions on the web{% if not offline %} (uses API){% endif %}</button>
+    </form>
+  </div>
+</details>
+{% else %}
+<p class="muted">No topics yet. <a href="{{ url_for('ingest_view', subject=subject) }}">Ingest material first →</a></p>
+{% endif %}
 <p class="muted">A short, smart intake — answer what's useful, the rest is inferred.</p>
 <form method="post" class="card">
   <label>Exam format <input name="exam_format" placeholder="e.g. closed-book, 2 hours, mixed"></label>

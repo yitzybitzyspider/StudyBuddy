@@ -122,6 +122,18 @@ def create_app(root=None) -> Flask:
 
     app.jinja_env.globals["offline"] = bool(os.environ.get("STUDYBUDDY_OFFLINE"))
 
+    # Catch-all: turn any unhandled exception into the friendly error page (with the real
+    # message) instead of a raw 500, and keep the traceback in the server log.
+    @app.errorhandler(Exception)
+    def _on_error(exc):
+        from werkzeug.exceptions import HTTPException
+
+        if isinstance(exc, HTTPException):
+            return exc
+        current_app.logger.exception("unhandled error")
+        subject = (request.view_args or {}).get("subject")
+        return _err(f"Something went wrong: {exc}", subject, code=500)
+
     # -- subject picker ----------------------------------------------------------------
 
     @app.get("/")
@@ -170,11 +182,10 @@ def create_app(root=None) -> Flask:
             )
         except ClaudeCallError as e:
             return _err(f"Ingestion failed: {e}", subject)
-        return render_template(
-            "topics.html", subject=subject, summary=summary,
-            rows=_topic_rows(store.load_concepts(subject, root=_root())),
-            status=_subject_status(subject),
-        )
+        # Intake immediately follows ingest, built from what was just extracted. (Ingest is
+        # additive — the counts reflect everything merged so far, not just this upload.)
+        return redirect(url_for("intake_view", subject=subject,
+                                added_concepts=summary["concepts"], added_items=summary["items"]))
 
     @app.get("/s/<subject>/topics")
     def topics_view(subject):
@@ -202,7 +213,12 @@ def create_app(root=None) -> Flask:
     def intake_view(subject):
         concepts = store.load_concepts(subject, root=_root())
         if request.method == "GET":
-            return render_template("intake.html", subject=subject, concepts=concepts)
+            return render_template(
+                "intake.html", subject=subject, concepts=concepts,
+                rows=_topic_rows(concepts), status=_subject_status(subject),
+                added_concepts=request.args.get("added_concepts"),
+                added_items=request.args.get("added_items"),
+            )
         confidence = {}
         for c in concepts:
             v = request.form.get(f"conf_{c.id}", "")
@@ -216,8 +232,10 @@ def create_app(root=None) -> Flask:
             "baseline": request.form.get("baseline", ""),
             "per_topic_confidence": confidence,
         }
-        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as tf:
-            json.dump(answers, tf)
+        with tempfile.NamedTemporaryFile(
+            "w", suffix=".json", delete=False, encoding="utf-8"
+        ) as tf:
+            json.dump(answers, tf, ensure_ascii=False)
             tmp = tf.name
         intake_mod.ingest_answers(subject, tmp, root=_root())
         return redirect(url_for("subject_home", subject=subject))
@@ -240,13 +258,13 @@ def create_app(root=None) -> Flask:
         )
         if not answers_path.exists():
             return _err("No diagnostic composed yet. Compose one first.", subject)
-        data = json.loads(answers_path.read_text())
+        data = json.loads(answers_path.read_text(encoding="utf-8"))
         if request.method == "GET":
             return render_template("diagnostic.html", subject=subject, questions=data["questions"])
         for q in data["questions"]:
             q["response"] = request.form.get(f"resp_{q['item_id']}", "")
             q["felt_lucky"] = request.form.get(f"lucky_{q['item_id']}") == "on"
-        answers_path.write_text(json.dumps(data, indent=2))
+        answers_path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
         try:
             result = administer_mod.administer(subject, answers_path=answers_path, root=_root())
         except ClaudeCallError as e:
@@ -277,7 +295,7 @@ def create_app(root=None) -> Flask:
             result = plan_mod.compose(subject, root=_root(), resolution=resolution)
         except (ValueError, ClaudeCallError) as e:
             return _err(f"Plan generation failed: {e}", subject)
-        markdown = result["markdown_path"].read_text()
+        markdown = result["markdown_path"].read_text(encoding="utf-8")
         return render_template(
             "plan.html", subject=subject, markdown=markdown,
             gaps=learner.gap_profile.entries, budget=result.get("budget"),
@@ -289,11 +307,11 @@ def create_app(root=None) -> Flask:
             store.DEFAULT_LEARNER, execute_mod.SESSION_NAME, root=_root()
         )
         if request.method == "POST" and request.form.get("answers") and session_path.exists():
-            data = json.loads(session_path.read_text())
+            data = json.loads(session_path.read_text(encoding="utf-8"))
             for q in data["questions"]:
                 q["response"] = request.form.get(f"resp_{q['item_id']}", "")
                 q["felt_lucky"] = request.form.get(f"lucky_{q['item_id']}") == "on"
-            session_path.write_text(json.dumps(data, indent=2))
+            session_path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
             try:
                 result = execute_mod.record_session(subject, answers_path=session_path, root=_root())
             except ClaudeCallError as e:
@@ -303,7 +321,7 @@ def create_app(root=None) -> Flask:
         info = execute_mod.next_session(subject, root=_root())
         if not info["item_ids"]:
             return render_template("session_done.html", subject=subject, result=None)
-        data = json.loads(session_path.read_text())
+        data = json.loads(session_path.read_text(encoding="utf-8"))
         return render_template(
             "session.html", subject=subject, questions=data["questions"],
             due_count=info["due_count"], new_count=info["new_count"],
