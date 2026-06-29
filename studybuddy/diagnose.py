@@ -31,12 +31,41 @@ from .wrapper import run_call
 _DEPTH_OK = 0.8  # at/above this correct_rate a concept is not flagged for depth (thin proxy)
 _DET_CONFIDENCE = 0.5  # deterministic pre-classification is a modest prior
 
+# Fallback per-format difficulty (1–5) when an item has no observed difficulty or prior.
+_FORMAT_DIFFICULTY = {"mc": 2, "numeric": 3, "short": 3, "essay": 4, "application": 4}
 
-def _classify(rollup, item_responses, confidence, items, thresholds) -> list[GapClassification]:
+
+def _item_difficulty(item, concept) -> int:
+    """A 1–5 difficulty for an item: observed (calibrated) > concept prior > format proxy."""
+    od = item.calibration.observed_difficulty
+    if od is not None:
+        return int(round(1 + 4 * max(0.0, min(1.0, od))))  # 0..1 -> 1..5
+    if concept is not None and concept.difficulty_prior is not None:
+        return int(round(max(1.0, min(5.0, concept.difficulty_prior))))
+    return _FORMAT_DIFFICULTY.get(item.format.value, 3)
+
+
+def _band_of(difficulty: int, bands: dict) -> str:
+    for name, rng in bands.items():
+        if isinstance(rng, list) and len(rng) == 2 and rng[0] <= difficulty <= rng[1]:
+            return name
+    return "medium"
+
+
+def _rate(hits: list[bool]):
+    return sum(1 for h in hits if h) / len(hits) if hits else None
+
+
+def _classify(
+    rollup, item_responses, confidence, items, thresholds, bands, concept_by_id
+) -> list[GapClassification]:
     found_below = thresholds.get("foundational", {}).get("easy_band_correct_rate_below", 0.5)
+    depth_cfg = thresholds.get("depth", {})
+    depth_at_least = depth_cfg.get("easy_medium_correct_rate_at_least", 0.8)
+    hard_below = depth_cfg.get("hard_correct_rate_below", 0.5)
     breadth_spread = thresholds.get("breadth", {}).get("per_concept_correct_rate_spread_above", 0.4)
 
-    # map item -> concepts (for the overconfidence / felt-lucky signal)
+    item_by_id = {it.id: it for it in items}
     item_concepts = {it.id: it.concept_ids for it in items}
     lucky_correct: set[str] = set()
     for r in item_responses:
@@ -44,14 +73,40 @@ def _classify(rollup, item_responses, confidence, items, thresholds) -> list[Gap
             for cid in item_concepts.get(r.item_id, []):
                 lucky_correct.add(cid)
 
+    # Material-aware buckets: per concept, the per-difficulty-band hit lists, so a multi-step
+    # concept can show a foundational *and* a depth gap (one step easy-and-broken, one
+    # hard-and-broken) rather than a single averaged verdict.
+    band_hits: dict[str, dict[str, list[bool]]] = defaultdict(lambda: defaultdict(list))
+    for r in item_responses:
+        it = item_by_id.get(r.item_id)
+        if it is None:
+            continue
+        for cid in it.concept_ids:
+            band = _band_of(_item_difficulty(it, concept_by_id.get(cid)), bands)
+            band_hits[cid][band].append(bool(r.correct))
+
     out: list[GapClassification] = []
     for cid, stats in rollup.items():
         cr = stats.get("correct_rate", 0.0)
         gaps: list[str] = []
-        if cr < found_below:
-            gaps.append("foundational")
-        elif cr < _DEPTH_OK:
-            gaps.append("depth")
+        cbands = band_hits.get(cid)
+        classified = False
+        if cbands:  # material-aware: judge by which difficulty step broke
+            easy_rate = _rate(cbands.get("easy", []))
+            easy_med_rate = _rate(cbands.get("easy", []) + cbands.get("medium", []))
+            hard_rate = _rate(cbands.get("hard", []))
+            if easy_rate is not None and easy_rate < found_below:
+                gaps.append("foundational")
+                classified = True
+            if (easy_med_rate is not None and easy_med_rate >= depth_at_least
+                    and hard_rate is not None and hard_rate < hard_below):
+                gaps.append("depth")
+                classified = True
+        if not classified:  # aggregate fallback (thin / single-band data)
+            if cr < found_below:
+                gaps.append("foundational")
+            elif cr < _DEPTH_OK:
+                gaps.append("depth")
         if stats.get("blanks", 0) > 0:
             gaps.append("speed")
         self_conf = confidence.get(cid)
@@ -198,12 +253,15 @@ def diagnose(subject: str, *, root=None, client=None, learner_id: str = store.DE
     by_name = {c.name: c.id for c in concepts}
     name_by_id = {c.id: c.name for c in concepts}
     confidence = state.intake.per_topic_confidence if state.intake else {}
-    thresholds = store.load_heuristics(root=root).gap_thresholds
-    gap_vocab = store.load_heuristics(root=root).gap_types
+    heuristics = store.load_heuristics(root=root)
+    thresholds = heuristics.gap_thresholds
+    gap_vocab = heuristics.gap_types
+    bands = (heuristics.difficulty_scale or {}).get("bands", {}) or {}
     items = store.load_items(subject, root=root)
 
     classification = _classify(
-        result.per_concept_rollup, result.item_responses, confidence, items, thresholds
+        result.per_concept_rollup, result.item_responses, confidence, items, thresholds,
+        bands, by_id,
     )
     result.gap_classification = classification  # mutate the stored result
 

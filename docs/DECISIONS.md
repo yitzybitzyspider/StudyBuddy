@@ -122,6 +122,13 @@ diagnostic, administer, diagnose, plan, steer) and adds no pipeline logic. Optio
 | I3 | Stopping rule | `sampling.stopping_status` fires when there are no open (non-resolved) gaps, when **every** open gap is at/above `stopping_rule.gap_confidence_target` (0.8), or when `max_adaptive_batches` (4) is reached. The batch cap guarantees termination (philosophy §9 — no unbounded loop pretending at rigor). | spec §Stage-7; heuristics config |
 | I4 | Strategic batch selection | `sampling.select_focus` picks, in priority order: the **weakest** open gap (lowest confidence), a **boundary** prerequisite that is itself shaky (via the Stage-2 dependency edges), and one **strength** to verify (a concept scored ≥0.8 this batch). Deterministic; sourcing/grading reuse Stages 4–6. File-based loop (E2): `sample` composes the next batch, the user answers + administers + diagnoses, then calls `sample` again. | spec §Stage-7 (weakest / boundary / verification) |
 
+### J. Material-aware gap heuristics (Stage 6)
+
+| # | Decision | Choice | Grounding |
+|---|----------|--------|-----------|
+| J1 | Band-aware classification | `_classify` now buckets a concept's answered items by **difficulty band** (the `difficulty_scale.bands` from the heuristics config) and applies the band-aware threshold rules already seeded but previously unused: `foundational` when the **easy**-band correct_rate is below `foundational.easy_band_correct_rate_below`; `depth` when **easy/medium** is solid (≥ `depth.easy_medium_correct_rate_at_least`) but **hard** breaks (< `depth.hard_correct_rate_below`). A multi-step concept can now surface foundational *and* depth from the same diagnostic (B1), instead of one averaged verdict. | build-plan Phase 3 ("material-aware … one step foundational, another depth"); spec §Stage-6 |
+| J2 | Per-item difficulty source | An item's 1–5 difficulty is taken from, in order: its **calibrated** `observed_difficulty` (Track A), else the concept's `difficulty_prior`, else a per-format proxy. Falls back to the aggregate `correct_rate` rule when a concept's banded data is too thin (e.g. a single item / single band), preserving Phase-1 behavior. | philosophy §9 (use real signal where it exists, don't fake it); G1 |
+
 ### D. Deferred (not built in Phase 0, per the build plan)
 
 Dependency map (Stage 2 / Phase 3), adaptive sampling (Phase 3), spacing engine & time

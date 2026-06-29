@@ -118,6 +118,53 @@ def test_dependency_context_passed_to_interpret_gaps(tmp_path, fake_client):
     assert dep["prerequisite_tested"] is True
 
 
+def test_material_aware_depth_when_only_hard_band_breaks(tmp_path, fake_client):
+    """Easy items right, hard items wrong on the same concept -> depth, not foundational."""
+    from studybuddy.models import (
+        Calibration, Item, ItemFormat, ItemResponse, Provenance, ProvenanceOrigin,
+    )
+
+    for d in ("prompts", "heuristics", "runs", "runs/blobs", "concepts", "items", "learner"):
+        (tmp_path / d).mkdir(parents=True, exist_ok=True)
+    seed.seed_knowledge_layer(root=tmp_path)
+    store.save_concepts(
+        "finance", [Concept(id="concept_npv", subject="finance", name="NPV")], root=tmp_path
+    )
+
+    def _it(diff):
+        return Item(
+            id=ids.ulid_id("item"), concept_ids=["concept_npv"], format=ItemFormat.numeric,
+            stem="q", answer_key="1", provenance=Provenance(origin=ProvenanceOrigin.retrieved),
+            calibration=Calibration(observed_difficulty=diff),
+        )
+
+    easy1, easy2 = _it(0.1), _it(0.1)   # band easy
+    hard1, hard2 = _it(0.95), _it(0.95)  # band hard
+    store.save_items("finance", [easy1, easy2, hard1, hard2], root=tmp_path)
+
+    responses = [
+        ItemResponse(item_id=easy1.id, response="1", correct=True),
+        ItemResponse(item_id=easy2.id, response="1", correct=True),
+        ItemResponse(item_id=hard1.id, response="x", correct=False),
+        ItemResponse(item_id=hard2.id, response="x", correct=False),
+    ]
+    result = DiagnosticResult(
+        id=ids.ulid_id("diag"), learner_id=store.DEFAULT_LEARNER, item_responses=responses,
+        per_concept_rollup={"concept_npv": {"seen": 4, "correct": 2, "correct_rate": 0.5, "blanks": 0}},
+        generated_at=ids.utcnow(),
+    )
+    store.save_learner(
+        LearnerState(learner_id=store.DEFAULT_LEARNER, diagnostic_results=[result]), root=tmp_path
+    )
+
+    client = fake_client(outputs=[INTERP_OUT])
+    out = diagnose.diagnose("finance", root=tmp_path, client=client)
+    cls = {c.concept_id: c.gap_types for c in out["classification"]}
+    # aggregate cr is 0.5 (would be "foundational" the old way); band-aware says depth
+    assert "depth" in cls["concept_npv"]
+    assert "foundational" not in cls["concept_npv"]
+
+
 def test_gap_confidence_accrues_and_status_confirms_across_batches(tmp_path, fake_client):
     from studybuddy.models import GapEntry, GapProfile, GapStatus
 
