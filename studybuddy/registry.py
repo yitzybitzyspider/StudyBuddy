@@ -38,6 +38,24 @@ def current_version(task: PromptTask | str, *, root: str | Path | None = None) -
     return version
 
 
+def record_acceptance(
+    task: PromptTask | str, version: str, accepted: bool, *, root: str | Path | None = None
+) -> None:
+    """Track A: accrue a verify outcome into a template version's metrics (attempts,
+    accepts, acceptance_rate). Updates the metric only — it never changes the `current`
+    default (that promotion is Track B, human-gated)."""
+    path = task_dir(task, root=root) / f"{version}.json"
+    if not path.exists():
+        return
+    data = json.loads(path.read_text())
+    metrics = data.get("metrics") or {}
+    metrics["attempts"] = int(metrics.get("attempts") or 0) + 1
+    metrics["accepts"] = int(metrics.get("accepts") or 0) + (1 if accepted else 0)
+    metrics["acceptance_rate"] = metrics["accepts"] / metrics["attempts"]
+    data["metrics"] = metrics
+    path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+
 def load_template(
     task: PromptTask | str,
     version: str = "current",

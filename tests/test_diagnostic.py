@@ -113,6 +113,54 @@ def test_compose_generates_to_fill_and_verifies(tmp_path, fake_client):
     assert phases == ["Stage 4: generate_item", "Stage 4: verify_item"]
 
 
+ADAPT_OUT = json.dumps(
+    {"stem": "A project costs $2,000, returns $2,500 in a year at 12%. NPV?",
+     "format": "numeric", "answer_key": "232.14", "concept_names": ["Net Present Value"]}
+)
+
+
+def test_adapts_a_real_item_before_generating(tmp_path, fake_client):
+    from studybuddy import registry
+    from studybuddy.models import ProvenanceOrigin, RefKind
+
+    for d in ("prompts", "heuristics", "runs", "runs/blobs"):
+        (tmp_path / d).mkdir(parents=True, exist_ok=True)
+    seed.seed_knowledge_layer(root=tmp_path)
+    _setup_subject(tmp_path, with_bank=True)  # 3 retrieved items
+
+    # size 4 > 3 retrievable -> one fill; a real item exists -> adapt (not generate)
+    client = fake_client(outputs=[ADAPT_OUT, VERIFY_PASS])
+    result = diagnostic.compose("finance", root=tmp_path, client=client, size=4)
+    assert result["retrieved"] == 3 and result["generated"] == 1
+
+    adapted = [
+        i for i in store.load_items("finance", root=tmp_path)
+        if i.provenance.origin is ProvenanceOrigin.adapted
+    ]
+    assert len(adapted) == 1
+    assert adapted[0].template_id == "adapt_item"
+    assert adapted[0].provenance.source.kind is RefKind.item  # links to the original
+
+    # Track A: acceptance accrued on the adapt_item template version
+    metrics = registry.load_template("adapt_item", root=tmp_path).metrics
+    assert metrics["attempts"] == 1 and metrics["acceptance_rate"] == 1.0
+
+    phases = [e.phase for e in RunLog(tmp_path).read_all()]
+    assert phases == ["Stage 4: adapt_item", "Stage 4: verify_item"]
+
+
+def test_record_acceptance_accrues_rate(tmp_path):
+    from studybuddy import registry
+
+    for d in ("prompts", "heuristics"):
+        (tmp_path / d).mkdir(parents=True, exist_ok=True)
+    seed.seed_knowledge_layer(root=tmp_path)
+    registry.record_acceptance("generate_item", "v1", True, root=tmp_path)
+    registry.record_acceptance("generate_item", "v1", False, root=tmp_path)
+    m = registry.load_template("generate_item", root=tmp_path).metrics
+    assert m["attempts"] == 2 and m["accepts"] == 1 and m["acceptance_rate"] == 0.5
+
+
 def test_generation_gate_rejects_failed_verification(tmp_path, fake_client):
     for d in ("prompts", "heuristics", "runs", "runs/blobs"):
         (tmp_path / d).mkdir(parents=True, exist_ok=True)

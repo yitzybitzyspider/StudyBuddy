@@ -27,6 +27,8 @@ from .models import (
     ItemFormat,
     Provenance,
     ProvenanceOrigin,
+    Reference,
+    RefKind,
 )
 from .wrapper import run_call
 
@@ -59,19 +61,33 @@ def _difficulty_for(concept: Concept, confidence: dict[str, float]) -> int:
     return 4  # harder on declared weaknesses, and stress-test declared strengths (FR-C3)
 
 
-def _item_from_generated(gen: dict, concept: Concept, template_version: str) -> Item:
-    gs = gen.get("grading_spec") or {}
+def _item_payload(item: Item) -> dict:
+    """The slice of an existing item handed to adapt_item as the source to rework."""
+    return {
+        "stem": item.stem,
+        "format": item.format.value,
+        "options": item.options,
+        "answer_key": item.answer_key,
+        "concept_names": item.concept_ids,
+    }
+
+
+def _item_from_sourced(
+    out: dict, concept: Concept, *, origin: ProvenanceOrigin, template_id: str,
+    template_version: str, source: Reference | None,
+) -> Item:
+    gs = out.get("grading_spec") or {}
     known = {k: gs[k] for k in ("rubric_text", "max_score", "facets") if k in gs}
     return Item(
         id=ids.ulid_id("item"),
         concept_ids=[concept.id],
-        format=ItemFormat(gen["format"]),
-        stem=gen["stem"],
-        options=gen.get("options"),
-        answer_key=gen["answer_key"],
-        rationale=gen.get("rationale"),
-        provenance=Provenance(origin=ProvenanceOrigin.generated),
-        template_id="generate_item",
+        format=ItemFormat(out["format"]),
+        stem=out["stem"],
+        options=out.get("options"),
+        answer_key=out["answer_key"],
+        rationale=out.get("rationale"),
+        provenance=Provenance(origin=origin, source=source),
+        template_id=template_id,
         template_version=template_version,
         grading_spec=GradingSpec(**known),
     )
@@ -157,10 +173,19 @@ def compose(
                     break
     retrieved = len(chosen)
 
-    # Generation pass: fill the remainder, gated by verify_item. Bounded to avoid runaway.
+    # Fill the remainder retrieval-first: ADAPT a real question (new numbers/context) when one
+    # exists for the concept, GENERATE only when nothing is adaptable; verify_item gates both,
+    # and acceptance accrues per template version (Track A). Bounded to avoid runaway.
     new_items: list[Item] = []
     if len(chosen) < target:
         gen_version = registry.current_version("generate_item", root=root)
+        adapt_version = registry.current_version("adapt_item", root=root)
+        adapt_sources: dict[str, list[Item]] = defaultdict(list)
+        for it in bank:  # real questions are the raw material to adapt
+            if it.provenance.origin is ProvenanceOrigin.retrieved:
+                for cid in it.concept_ids:
+                    adapt_sources[cid].append(it)
+
         attempts = 0
         max_attempts = (target - len(chosen)) * 3 + len(ordered)
         ci = 0
@@ -168,27 +193,41 @@ def compose(
             concept = ordered[ci % len(ordered)]
             ci += 1
             attempts += 1
-            gen = run_call(
-                "generate_item",
-                {
-                    "concept": concept.name,
-                    "difficulty": _difficulty_for(concept, confidence),
-                    "format": _COMPONENT_FORMATS[attempts % len(_COMPONENT_FORMATS)],
-                    "source_context": f"Concept: {concept.name} (subject: {subject})",
-                },
-                root=root,
-                client=client,
-                phase="Stage 4: generate_item",
-            )
+            fmt = _COMPONENT_FORMATS[attempts % len(_COMPONENT_FORMATS)]
+            difficulty = _difficulty_for(concept, confidence)
+            sources = adapt_sources.get(concept.id)
+            if sources:  # retrieval-first: adapt a real question
+                src = sources[attempts % len(sources)]
+                out = run_call(
+                    "adapt_item",
+                    {"source_item": _item_payload(src), "target_concept": concept.name,
+                     "target_difficulty": difficulty, "target_format": fmt},
+                    root=root, client=client, phase="Stage 4: adapt_item",
+                )
+                task, version, origin = "adapt_item", adapt_version, ProvenanceOrigin.adapted
+                source_ref = Reference(kind=RefKind.item, ref=src.id)
+            else:  # last resort: generate from scratch
+                out = run_call(
+                    "generate_item",
+                    {"concept": concept.name, "difficulty": difficulty, "format": fmt,
+                     "source_context": f"Concept: {concept.name} (subject: {subject})"},
+                    root=root, client=client, phase="Stage 4: generate_item",
+                )
+                task, version, origin = "generate_item", gen_version, ProvenanceOrigin.generated
+                source_ref = None
+
             verdict = run_call(
                 "verify_item",
-                {"item": gen, "intended_concept": concept.name},
-                root=root,
-                client=client,
-                phase="Stage 4: verify_item",
+                {"item": out, "intended_concept": concept.name},
+                root=root, client=client, phase="Stage 4: verify_item",
             )
-            if verdict.get("verdict") == "pass":
-                item = _item_from_generated(gen, concept, gen_version)
+            accepted = verdict.get("verdict") == "pass"
+            registry.record_acceptance(task, version, accepted, root=root)
+            if accepted:
+                item = _item_from_sourced(
+                    out, concept, origin=origin, template_id=task,
+                    template_version=version, source=source_ref,
+                )
                 new_items.append(item)
                 chosen.append(item)
 

@@ -97,6 +97,8 @@ diagnostic, administer, diagnose, plan, steer) and adds no pipeline logic. Optio
 |---|----------|--------|-----------|
 | G1 | Calibration accrual | Each answer accrues `times_seen`, `correct_rate`, `observed_difficulty` (= 1 − correct_rate), and `confidence` (saturates with exposure via `calibration.confidence_k` in the heuristics config). All Track A (auto, no sign-off). | philosophy §8 (auto-accrual track); build-plan Phase 2 |
 | G2 | Discrimination deferred | `Item.calibration.discrimination` stays `null`. True discrimination is a cross-respondent statistic; with one learner it can't be computed without faking rigor, so we don't. Revisit under multi-user (NFR-2). | philosophy §9 (honesty over false rigor) |
+| G3 | Sourcing order | The diagnostic composer fills gaps **retrieve → adapt → generate → verify**: reuse a real item, `adapt_item` (new numbers/context) when one exists for the concept, `generate_item` only when nothing is adaptable; `verify_item` gates everything adapted/generated. | philosophy §4 (retrieve before generate) |
+| G4 | Acceptance metrics | Each verify outcome accrues into the template version's `metrics` (attempts, accepts, `acceptance_rate`) via `registry.record_acceptance` — Track A (auto). It never flips the `current` default; promoting a version stays Track B (human-gated). | philosophy §8 (two tracks) |
 
 ### D. Deferred (not built in Phase 0, per the build plan)
 
