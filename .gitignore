@@ -16,3 +16,4 @@ venv/
 # Test / tooling caches
 .pytest_cache/
 .coverage
+material/
