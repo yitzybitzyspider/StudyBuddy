@@ -182,6 +182,13 @@ diagnostic, administer, diagnose, plan, steer) and adds no pipeline logic. Optio
 | P1 | Principles override the metric | `proposals.decide` runs `philosophy.check` before applying any accept. A violation turns the accept into a **principled rejection** with the offending principle recorded in `decision_note` — "rejected even when the local metric looks good." The gate is not bypassable (no `--force`); that is the point of philosophy §8. | build-plan Phase 5; philosophy §8 |
 | P2 | Conservative, concrete checks | The checks catch corruption / faked rigor, not every bad idea: `recalibrate_difficulty` must stay within the difficulty scale (§9); `add_dependency_edge` forbids self-loops, out-of-range confidence, and edges contradicting an existing confident opposite edge (§8); `promote_prompt_version` must keep a typed strict-JSON output schema (standing rule). Human judgment owns the rest of the gate — this is the floor, not the ceiling. | philosophy §8/§9; CLAUDE.md standing rules |
 
+### Q. Model selection (operational)
+
+| # | Decision | Choice | Grounding |
+|---|----------|--------|-----------|
+| Q1 | One model knob | Every Claude call's model comes from `STUDYBUDDY_MODEL` (wrapper default `claude-opus-4-8`). For cheap testing, set it to `claude-haiku-4-5-20251001`. Per-call override stays available (`run-call --model`, the `model=` arg). | spec §7 (token-aware via scoped calls, not budgeting); operational |
+| Q2 | Web search keeps a capable model | The server-side `web_search` tool only runs on Opus 4.6+, so `harvest_web` overrides the cheap default via `STUDYBUDDY_WEBSEARCH_MODEL` (default `claude-opus-4-6`) for that one opt-in call; the rest of the pipeline still runs on the cheap `STUDYBUDDY_MODEL`. This is a testing convenience — final model policy is deferred. | Loop 15 (web search needs Opus 4.6+); cost control |
+
 ### D. Deferred (not built in Phase 0, per the build plan)
 
 All five phases of the build plan are now built. Out of scope entirely (unchanged): multi-user,

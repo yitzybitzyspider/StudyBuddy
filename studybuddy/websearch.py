@@ -20,6 +20,8 @@ Every Claude call still returns strict JSON validated against its schema (the wr
 
 from __future__ import annotations
 
+import os
+
 from . import ids, store
 from .models import (
     GradingSpec,
@@ -34,6 +36,15 @@ from .wrapper import run_call
 
 # Anthropic server-side web-search tool (Opus 4.6+; no beta header).
 _WEB_SEARCH_TYPE = "web_search_20260209"
+
+# The web-search tool only runs on a capable model (Opus 4.6+), so this one call can override
+# the cheap default (STUDYBUDDY_MODEL) without forcing the whole pipeline onto a pricier model.
+# Set STUDYBUDDY_WEBSEARCH_MODEL to pick it; None means inherit the wrapper's default.
+_DEFAULT_WEBSEARCH_MODEL = "claude-opus-4-6"
+
+
+def _websearch_model() -> str | None:
+    return os.environ.get("STUDYBUDDY_WEBSEARCH_MODEL") or _DEFAULT_WEBSEARCH_MODEL
 
 # Standardization -> how many web searches the harvest may run. More standardized exams have
 # more good public practice material, so a wider search pays off; bespoke exams do not.
@@ -122,6 +133,7 @@ def web_harvest(subject: str, *, root=None, client=None) -> dict:
         },
         root=root,
         client=client,
+        model=_websearch_model(),
         phase="Stage 2: harvest_web",
         tools=[{"type": _WEB_SEARCH_TYPE, "name": "web_search", "max_uses": breadth}],
     )
