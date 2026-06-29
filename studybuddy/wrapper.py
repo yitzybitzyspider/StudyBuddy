@@ -31,7 +31,9 @@ from .runlog import RunLog
 
 # One retry on malformed output (decision A7): one initial attempt + one retry.
 MAX_RETRIES = 1
-DEFAULT_MAX_TOKENS = 4096
+# Harvesting/plan calls can emit many items; 4096 truncates a full exam. 16000 is the
+# recommended non-streaming ceiling (streaming would be needed above that).
+DEFAULT_MAX_TOKENS = 16000
 
 
 def _default_model() -> str:
