@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %} — Test{% endblock %}
+{% block content %}
+<h1>Test — {{ subject | replace('-', ' ') | title }}</h1>
+{% if not status.topics %}
+<p class="muted">No topics yet — <a href="{{ url_for('materials_view', subject=subject) }}">upload material first</a>.</p>
+{% else %}
+<p class="muted">A short diagnostic built retrieval-first from your material's real questions:
+harder probes on declared weaknesses, stress-tests on declared strengths, and probes for
+topics you didn't rate.</p>
+<form method="post" action="{{ url_for('compose_view', subject=subject) }}" class="card" style="max-width:480px">
+  <label>Number of questions
+    <input type="number" name="size" value="8" min="1" max="40">
+  </label>
+  {% if not status.has_intake %}
+  <p class="muted">Tip: <a href="{{ url_for('intake_view', subject=subject) }}">set up intake</a> first —
+  your confidence ratings shape which questions get picked.</p>
+  {% endif %}
+  <button type="submit">Start the test →</button>
+  {% if not offline %}<p class="muted" style="margin-top:8px">Composing may generate/verify a few fill-in questions (Claude calls).</p>{% endif %}
+</form>
+{% endif %}
+{% endblock %}

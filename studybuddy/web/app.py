@@ -385,17 +385,25 @@ def create_app(root=None, auth_provider=None) -> Flask:
     def diagnostic_view(subject):
         data = store.get_doc(_learner(), subject, diagnostic_mod.ANSWERS_NAME, root=_root())
         if not isinstance(data, dict):
-            return _err("No diagnostic composed yet. Compose one first.", subject)
+            # nothing composed yet -> the setup screen (compose posts to compose_view)
+            return render_template(
+                "test_setup.html", subject=subject, status=_subject_status(subject)
+            )
         if request.method == "GET":
             return render_template("diagnostic.html", subject=subject, questions=data["questions"])
         for q in data["questions"]:
             q["response"] = request.form.get(f"resp_{q['item_id']}", "")
             q["felt_lucky"] = request.form.get(f"lucky_{q['item_id']}") == "on"
+            t = _num(request.form.get(f"time_{q['item_id']}"))
+            if t:
+                q["time_spent"] = t
         store.put_doc(_learner(), subject, diagnostic_mod.ANSWERS_NAME, data, root=_root())
         try:
             result = administer_mod.administer(subject, answers=data, root=_root())
         except ClaudeCallError as e:
             return _err(f"Grading failed: {e}", subject)
+        # the answered cycle is done; a fresh visit to Test offers the setup screen again
+        store.delete_doc(_learner(), subject, diagnostic_mod.ANSWERS_NAME, root=_root())
         return render_template(
             "results.html", subject=subject, result=result, status=_subject_status(subject)
         )
@@ -408,7 +416,48 @@ def create_app(root=None, auth_provider=None) -> Flask:
             diagnose_mod.diagnose(subject, root=_root())
         except (ValueError, ClaudeCallError) as e:
             return _err(f"Diagnosis failed: {e}", subject)
-        return redirect(url_for("plan_view", subject=subject))
+        return redirect(url_for("gaps_view", subject=subject))
+
+    @app.get("/s/<subject>/gaps")
+    def gaps_view(subject):
+        from .. import sampling as sampling_mod
+        from ..models import GapStatus
+
+        root = _root()
+        learner = store.load_learner(_learner(), subject=subject, root=root)
+        if learner.gap_profile is None:
+            return _err("No diagnosis yet — take the test first.", subject)
+        concepts = {c.id: c for c in store.load_concepts(subject, root=root)}
+        # upstream-prerequisite callouts: a gap whose concept depends on another gapped concept
+        gapped_ids = {e.concept_id for e in learner.gap_profile.entries
+                      if e.status is not GapStatus.resolved}
+        upstream = {}
+        for cid in gapped_ids:
+            c = concepts.get(cid)
+            if not c:
+                continue
+            for edge in c.dependency_edges:
+                if edge.other_concept_id in gapped_ids:
+                    upstream[cid] = concepts[edge.other_concept_id].name
+                    break
+        status = sampling_mod.stopping_status(learner, store.load_heuristics(root=root))
+        return render_template(
+            "gaps.html", subject=subject, entries=learner.gap_profile.entries,
+            names={cid: c.name for cid, c in concepts.items()}, upstream=upstream,
+            sampling=status, GapStatus=GapStatus,
+        )
+
+    @app.post("/s/<subject>/adaptive")
+    def adaptive_view(subject):
+        from .. import sampling as sampling_mod
+
+        try:
+            result = sampling_mod.next_batch(subject, root=_root(), learner_id=_learner())
+        except (ValueError, ClaudeCallError) as e:
+            return _err(f"Could not compose the next batch: {e}", subject)
+        if not result["composed"]:
+            return redirect(url_for("gaps_view", subject=subject))
+        return redirect(url_for("diagnostic_view", subject=subject))
 
     @app.get("/s/<subject>/plan")
     def plan_view(subject):

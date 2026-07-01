@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %} — Gap report{% endblock %}
+{% block content %}
+<h1>Gap report — {{ subject | replace('-', ' ') | title }}</h1>
+<p class="muted">Where understanding actually breaks down — as hypotheses that get confirmed
+or resolved by follow-up testing, not one-off verdicts.</p>
+
+<div class="adaptive">
+  <div>
+    <b>Adaptive testing: batch {{ sampling.batches_done }}/{{ sampling.max_batches }}</b>
+    <p class="muted" style="margin:2px 0 0">
+      {% if sampling.stop %}
+        Done — {{ sampling.reason }}.
+      {% else %}
+        {{ sampling.low_confidence_gaps | length }} gap(s) still below the
+        {{ (sampling.target * 100) | round | int }}% confidence target.
+      {% endif %}
+    </p>
+  </div>
+  <div style="display:flex; gap:10px">
+    {% if not sampling.stop %}
+    <form method="post" action="{{ url_for('adaptive_view', subject=subject) }}">
+      <button type="submit" class="btn">Continue testing →</button>
+    </form>
+    {% endif %}
+    <a class="btn {{ 'secondary' if not sampling.stop else '' }}" href="{{ url_for('plan_view', subject=subject) }}">Build my plan →</a>
+  </div>
+</div>
+
+{% for e in entries %}
+<div class="card gap-card {{ 'resolved' if e.status.value == 'resolved' }}">
+  <div class="row">
+    <b>{{ names.get(e.concept_id, e.concept_id) }}</b>
+    <span class="badge amber">{{ e.gap_type }}</span>
+    <span class="badge {{ 'green' if e.status.value == 'resolved' else ('blue' if e.status.value == 'confirmed' else 'gray') }}">{{ e.status.value }}</span>
+    {% if e.severity is not none %}
+      <span class="muted">severity</span>
+      <span class="sev"><div style="width: {{ (e.severity * 100) | round | int }}%"></div></span>
+    {% endif %}
+    {% if e.confidence is not none %}
+      <span class="muted">confidence {{ (e.confidence * 100) | round | int }}%</span>
+    {% endif %}
+  </div>
+  {% if upstream.get(e.concept_id) %}
+  <p class="muted" style="margin:8px 0 0">↳ likely traces upstream to
+    <b>{{ upstream[e.concept_id] }}</b> — shore that up first.</p>
+  {% endif %}
+</div>
+{% else %}
+<p class="ok">No gaps on record — take a test to generate a diagnosis.</p>
+{% endfor %}
+{% endblock %}

@@ -18,6 +18,7 @@
     <a class="nav {% if request.endpoint == 'topics_view' %}active{% endif %}" href="{{ url_for('topics_view', subject=subject) }}">Topics</a>
     <a class="nav {% if request.endpoint == 'intake_view' %}active{% endif %}" href="{{ url_for('intake_view', subject=subject) }}">Intake</a>
     <a class="nav {% if request.endpoint == 'diagnostic_view' %}active{% endif %}" href="{{ url_for('diagnostic_view', subject=subject) }}">Test</a>
+    <a class="nav {% if request.endpoint == 'gaps_view' %}active{% endif %}" href="{{ url_for('gaps_view', subject=subject) }}">Gaps</a>
     <a class="nav {% if request.endpoint == 'plan_view' %}active{% endif %}" href="{{ url_for('plan_view', subject=subject) }}">Plan</a>
     <a class="nav {% if request.endpoint == 'study_view' %}active{% endif %}" href="{{ url_for('study_view', subject=subject) }}">Study</a>
     {% endif %}

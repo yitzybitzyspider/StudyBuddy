@@ -1,22 +1,45 @@
 {% extends "base.html" %}
+{% block title %} — Test{% endblock %}
 {% block content %}
-<h1>3 · Diagnostic — {{ subject }}</h1>
-<p class="muted">Answer what you can. Not sure? Leave it blank or write "not sure" — that's useful signal, not a failure.</p>
-<form method="post" class="card">
+<h1>Test — {{ subject | replace('-', ' ') | title }}</h1>
+<p class="muted">One question at a time. Not sure? Leave it blank or say "not sure" — that's
+useful signal, not a failure. Your time per question is recorded (it feeds the speed signal).</p>
+
+<div class="player-head">
+  <span class="counter" data-counter>Question 1 of {{ questions | length }}</span>
+  <div class="progressbar"><div data-progress style="width:0%"></div></div>
+</div>
+
+<form method="post" data-player>
   {% for q in questions %}
   <div class="q">
-    <div class="q-meta">Q{{ loop.index }} · {{ q.format }} · <em>{{ q.concept }}</em></div>
+    <div class="q-meta">{{ q.format }} · <em>{{ q.concept }}</em></div>
     <div class="q-stem">{{ q.stem }}</div>
     {% if q.options %}
       {% for o in q.options %}
       <label class="opt"><input type="radio" name="resp_{{ q.item_id }}" value="{{ o }}"> {{ o }}</label>
       {% endfor %}
     {% else %}
-      <textarea name="resp_{{ q.item_id }}" rows="2" placeholder="Your answer"></textarea>
+      <textarea name="resp_{{ q.item_id }}" rows="3" placeholder="Your answer"></textarea>
     {% endif %}
     <label class="lucky"><input type="checkbox" name="lucky_{{ q.item_id }}"> I guessed</label>
+    <input type="hidden" name="time_{{ q.item_id }}" value="0" data-time>
   </div>
   {% endfor %}
-  <button type="submit">Submit answers →</button>
+
+  <div data-review style="display:none">
+    <h2>Review before you submit</h2>
+    <p class="muted">Green = answered · amber = blank. Click a number to jump back.</p>
+    <div class="review-grid" data-review-grid></div>
+  </div>
+
+  <div class="player-nav">
+    <button type="button" class="btn secondary" data-prev>← Previous</button>
+    <button type="button" class="btn" data-next>Next →</button>
+    <span data-submit-row style="display:none">
+      <button type="submit" class="btn">Submit test →</button>
+    </span>
+  </div>
 </form>
+<script src="{{ url_for('static', filename='app.js') }}"></script>
 {% endblock %}

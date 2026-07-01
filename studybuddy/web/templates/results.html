@@ -1,18 +1,38 @@
 {% extends "base.html" %}
+{% block title %} — Results{% endblock %}
 {% block content %}
-<h1>Results — {{ subject }}</h1>
-<p class="ok"><b>{{ result.correct }} / {{ result.answered }}</b> correct.</p>
-<ol class="feedback">
-  {% for f in result.feedback %}
-  <li class="{{ 'good' if f.correct else 'bad' }}">
-    <b>{{ '✓' if f.correct else '✗' }}</b> <span class="tag">{{ f.format }}</span> {{ f.stem }}
-    {% if f.blank %}<div class="muted">(left blank)</div>{% endif %}
-    {% if not f.correct and f.correct_answer %}<div class="ans">answer: {{ f.correct_answer }}</div>{% endif %}
-    {% if f.score is defined %}<div class="muted">score {{ f.score }} · missed: {{ f.missed_facets | join(', ') or '—' }}</div>{% endif %}
-  </li>
-  {% endfor %}
-</ol>
-<form method="post" action="{{ url_for('diagnose_view', subject=subject) }}">
-  <button type="submit">Diagnose my gaps →</button>
-</form>
+<h1>Results — {{ subject | replace('-', ' ') | title }}</h1>
+
+{% set pct = (100 * result.correct / result.answered) | round | int if result.answered else 0 %}
+<div class="score-wrap">
+  <div class="score-ring" style="--pct: {{ pct }}"><div class="inner">{{ pct }}%</div></div>
+  <div>
+    <div style="font-weight:700; font-size:1.1rem">{{ result.correct }} of {{ result.answered }} correct</div>
+    <p class="muted">The score matters less than the pattern — the diagnosis reads <em>which</em>
+    questions broke and what they depend on.</p>
+    <form method="post" action="{{ url_for('diagnose_view', subject=subject) }}">
+      <button type="submit" class="btn">Analyze my gaps →</button>
+    </form>
+  </div>
+</div>
+
+<h2>Question by question</h2>
+{% for f in result.feedback %}
+<details class="feedback" {% if not f.correct %}open{% endif %}>
+  <summary>
+    <span class="mark {{ 'right' if f.correct else 'wrong' }}">{{ '✓' if f.correct else '✗' }}</span>
+    <span class="badge gray">{{ f.format }}</span>
+    <span>{{ f.stem[:90] }}{% if f.stem | length > 90 %}…{% endif %}</span>
+  </summary>
+  <div class="body">
+    {% if f.blank %}<p>Left blank.</p>{% endif %}
+    {% if not f.correct and f.correct_answer %}<p><b>Correct answer:</b> {{ f.correct_answer }}</p>{% endif %}
+    {% if f.score is defined %}
+      <p><b>Score:</b> {{ f.score }}{% if f.reasoning %} — {{ f.reasoning }}{% endif %}</p>
+      {% if f.missed_facets %}<p><b>Missed:</b> {{ f.missed_facets | join(', ') }}</p>{% endif %}
+    {% endif %}
+    {% if f.correct and f.score is not defined %}<p>Correct.</p>{% endif %}
+  </div>
+</details>
+{% endfor %}
 {% endblock %}
