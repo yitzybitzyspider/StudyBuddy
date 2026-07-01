@@ -18,15 +18,17 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["pytest>=8", "flask>=3"]
 web = ["flask>=3"]
+# The multi-user platform mode: Supabase Postgres (RLS) + Supabase Auth.
+platform = ["flask>=3", "supabase>=2.4,<3"]
 
 [project.scripts]
 studybuddy = "studybuddy.cli:main"
 
 [tool.setuptools]
-packages = ["studybuddy", "studybuddy.web"]
+packages = ["studybuddy", "studybuddy.storage", "studybuddy.web"]
 
 [tool.setuptools.package-data]
-"studybuddy.web" = ["templates/*.html", "static/*.css"]
+"studybuddy.web" = ["templates/*.html", "static/*.css", "static/*.js"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

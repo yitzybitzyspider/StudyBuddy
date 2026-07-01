@@ -15,8 +15,9 @@ the run log, and proposals never route to a database. Learner state is per
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Iterable
 
 from . import ids, paths
 from .models import Concept, HeuristicsConfig, Item, LearnerState, Material, Proposal
@@ -29,8 +30,21 @@ DEFAULT_LEARNER = "learner_default"
 DIAGNOSTIC_DOC = "diagnostic.json"
 
 
-def _backend(root=None) -> LocalBackend:
-    """Resolve the storage backend. Loop 27/28 add user-context + Supabase dispatch here."""
+def _backend(root=None):
+    """Resolve the storage backend for the current context.
+
+    Supabase only when BOTH hold: ``STUDYBUDDY_BACKEND=supabase`` and a signed-in user
+    context (set by the web layer). CLI and tests never set the context, so they always get
+    the local backend — the whole suite stays offline.
+    """
+    if os.environ.get("STUDYBUDDY_BACKEND") == "supabase":
+        from . import usercontext
+
+        ctx = usercontext.get_user()
+        if ctx is not None and ctx.access_token:
+            from .storage.supa import SupabaseBackend
+
+            return SupabaseBackend(ctx.user_id, ctx.access_token)
     return LocalBackend(paths.knowledge_root(root))
 
 
