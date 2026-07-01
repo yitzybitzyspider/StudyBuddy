@@ -6,7 +6,7 @@ services:
     name: studybuddy
     runtime: python
     plan: free
-    branch: claude/claude-file-setup-tb8aar
+    branch: main
     buildCommand: pip install -e ".[platform]"
     startCommand: gunicorn "studybuddy.web:create_app()" --workers 2 --threads 4 --timeout 180 --bind 0.0.0.0:$PORT
     healthCheckPath: /healthz
