@@ -1,19 +1,30 @@
 {% extends "base.html" %}
+{% block title %} — {{ subject }}{% endblock %}
 {% block content %}
-<h1>{{ subject }}</h1>
-<div class="status">
-  <span>Topics: <b>{{ status.topics }}</b></span>
-  <span>Questions: <b>{{ status.items }}</b></span>
-  <span>Intake: <b>{{ 'yes' if status.has_intake else '—' }}</b></span>
-  <span>Diagnostic: <b>{{ 'composed' if status.has_diagnostic else '—' }}</b></span>
-  <span>Graded: <b>{{ 'yes' if status.graded else '—' }}</b></span>
-  <span>Plan: <b>{{ 'yes' if status.has_plan else '—' }}</b></span>
+<h1>{{ subject | replace('-', ' ') | title }}</h1>
+
+<div class="banner">
+  <div>
+    <div class="title">Next: {{ course.action_label }}</div>
+    <p>{{ course.action_note }}</p>
+  </div>
+  <a class="btn" href="{{ url_for(course.action_endpoint, subject=subject) }}">Go →</a>
 </div>
+
+<div class="stats">
+  <div class="stat"><div class="num">{{ course.topics }}</div><div class="lbl">Topics</div></div>
+  <div class="stat"><div class="num">{{ course['items'] }}</div><div class="lbl">Questions</div></div>
+  <div class="stat"><div class="num">{{ course.mastery if course.mastery is not none else '—' }}{% if course.mastery is not none %}%{% endif %}</div><div class="lbl">Correct so far</div></div>
+  <div class="stat"><div class="num">{{ course.due }}</div><div class="lbl">Reviews due</div></div>
+  <div class="stat"><div class="num">{{ course.open_gaps }}</div><div class="lbl">Open gaps</div></div>
+</div>
+
+<h2>How it works</h2>
 <div class="cards">
-  <a class="card step" href="{{ url_for('ingest_view', subject=subject) }}"><b>1 · Ingest</b><span>Upload a past exam, chapter, or notes. Claude extracts the topics and harvests real questions.</span></a>
-  <a class="card step" href="{{ url_for('intake_view', subject=subject) }}"><b>2 · Intake</b><span>Your exam format, time available, and per-topic confidence.</span></a>
-  <a class="card step" href="{{ url_for('diagnostic_view', subject=subject) }}"><b>3 · Diagnostic</b><span>Compose a diagnostic from real questions and take it.</span></a>
-  <a class="card step" href="{{ url_for('plan_view', subject=subject) }}"><b>4 · Plan</b><span>Your diagnosed gaps and a source-linked study plan.</span></a>
-  <a class="card step" href="{{ url_for('study_view', subject=subject) }}"><b>5 · Study</b><span>Spaced, interleaved practice in-system. Reviews come back when they're due.</span></a>
+  <a class="card step" href="{{ url_for('materials_view', subject=subject) }}"><b>1 · Materials</b><span>Upload past exams, chapters, notes. Real questions and the topic map come from them — add more anytime.</span></a>
+  <a class="card step" href="{{ url_for('intake_view', subject=subject) }}"><b>2 · Intake</b><span>Your exam format, hours available, and per-topic confidence. Editable whenever things change.</span></a>
+  <a class="card step" href="{{ url_for('diagnostic_view', subject=subject) }}"><b>3 · Test</b><span>A short diagnostic finds where understanding breaks down — then focused batches confirm each gap.</span></a>
+  <a class="card step" href="{{ url_for('plan_view', subject=subject) }}"><b>4 · Plan</b><span>A source-linked plan over your confirmed gaps, with honest time math you can steer.</span></a>
+  <a class="card step" href="{{ url_for('study_view', subject=subject) }}"><b>5 · Study</b><span>Spaced, interleaved practice in-system. Hard items come back sooner; solid ones later.</span></a>
 </div>
 {% endblock %}

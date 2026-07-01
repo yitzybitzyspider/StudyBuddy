@@ -1,17 +1,47 @@
 {% extends "base.html" %}
+{% block title %} — Dashboard{% endblock %}
 {% block content %}
-<h1>Your subjects</h1>
-{% if subjects %}
-  <ul class="subjects">
-  {% for s in subjects %}<li><a href="{{ url_for('subject_home', subject=s) }}">{{ s }}</a></li>{% endfor %}
-  </ul>
-{% else %}
-  <p class="muted">No subjects yet — create one to get started.</p>
+<h1>Your courses</h1>
+{% if due_total %}
+<div class="banner">
+  <div>
+    <div class="title">{{ due_total }} review{{ 's' if due_total != 1 }} due today</div>
+    <p>Spaced reviews keep what you've learned from fading — knock them out first.</p>
+  </div>
+</div>
 {% endif %}
-<form method="post" action="{{ url_for('create_subject') }}" class="card">
-  <label>New subject
-    <input name="subject" placeholder="e.g. data-and-decisions" required>
-  </label>
-  <button type="submit">Create →</button>
-</form>
+
+<div class="courses">
+  {% for c in courses %}
+  <div class="course-card">
+    <h3><a href="{{ url_for('subject_home', subject=c.subject) }}">{{ c.subject | replace('-', ' ') }}</a></h3>
+    <div class="meta">
+      {{ c.topics }} topics · {{ c['items'] }} questions
+      {% if c.due %} · <b>{{ c.due }} due</b>{% endif %}
+    </div>
+    {% if c.mastery is not none %}
+    <div>
+      <div class="progressbar green"><div style="width: {{ c.mastery }}%"></div></div>
+      <div class="meta" style="margin-top:4px">{{ c.mastery }}% correct so far</div>
+    </div>
+    {% endif %}
+    <div class="foot">
+      <a class="btn small" href="{{ url_for(c.action_endpoint, subject=c.subject) }}">{{ c.action_label }}</a>
+    </div>
+  </div>
+  {% endfor %}
+
+  <div class="course-card new">
+    <form method="post" action="{{ url_for('create_subject') }}">
+      <label>New course
+        <input name="subject" placeholder="e.g. Data and Decisions" required>
+      </label>
+      <button type="submit">Create course →</button>
+    </form>
+  </div>
+</div>
+{% if not courses %}
+<p class="muted">Create a course, upload a past exam or chapter, and take a diagnostic —
+you'll have a source-linked study plan in minutes.</p>
+{% endif %}
 {% endblock %}

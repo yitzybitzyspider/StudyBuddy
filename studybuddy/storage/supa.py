@@ -146,6 +146,14 @@ class SupabaseBackend:
             on_conflict="subject_id,material_id",
         ).execute()
 
+    def delete_material(self, subject: str, material_id: str) -> None:
+        sid = self._subject_id(subject)
+        (
+            self._t("materials").delete()
+            .eq("subject_id", sid).eq("material_id", material_id)
+            .execute()
+        )
+
     def save_material_raw(self, subject: str, material_id: str, text: str) -> str:
         # Raw text arrives before the Material record (ingest order); stub the row now,
         # add_material fills the payload on the same key.

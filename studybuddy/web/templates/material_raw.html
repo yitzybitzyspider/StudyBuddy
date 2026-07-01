@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %} — {{ material.source }}{% endblock %}
+{% block content %}
+<h1>{{ material.source }}</h1>
+<p class="muted"><span class="badge gray">{{ material.type.value }}</span> ·
+  {{ material.extracted_concepts | length }} topics ·
+  {{ material.harvested_items | length }} questions ·
+  added {{ material.ingested_at.strftime('%b %d, %Y') }}</p>
+<pre class="raw">{{ text }}</pre>
+<p><a class="button" href="{{ url_for('materials_view', subject=subject) }}">← Back to materials</a></p>
+{% endblock %}

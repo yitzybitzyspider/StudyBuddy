@@ -7,24 +7,37 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-  <header>
-    <a class="brand" href="{{ url_for('index') }}">📚 StudyBuddy</a>
-    {% if offline %}<span class="badge offline">offline</span>{% else %}<span class="badge live">live</span>{% endif %}
-    {% if auth_enabled and session.get('sb') %}
-    <span class="user-menu">{{ session['sb'].get('email', '') }}
-      <form method="post" action="{{ url_for('auth.logout') }}" style="display:inline"><button type="submit">Sign out</button></form>
-    </span>
+<div class="shell">
+  <aside class="sidebar">
+    <a class="brand" href="{{ url_for('index') }}">in<span>leto</span></a>
+    <a class="nav {% if request.endpoint == 'index' %}active{% endif %}" href="{{ url_for('index') }}">Dashboard</a>
+    {% if subject is defined and subject %}
+    <div class="nav-label">{{ subject | replace('-', ' ') }}</div>
+    <a class="nav {% if request.endpoint == 'subject_home' %}active{% endif %}" href="{{ url_for('subject_home', subject=subject) }}">Overview</a>
+    <a class="nav {% if request.endpoint in ('materials_view', 'material_raw_view', 'ingest_view') %}active{% endif %}" href="{{ url_for('materials_view', subject=subject) }}">Materials</a>
+    <a class="nav {% if request.endpoint == 'topics_view' %}active{% endif %}" href="{{ url_for('topics_view', subject=subject) }}">Topics</a>
+    <a class="nav {% if request.endpoint == 'intake_view' %}active{% endif %}" href="{{ url_for('intake_view', subject=subject) }}">Intake</a>
+    <a class="nav {% if request.endpoint == 'diagnostic_view' %}active{% endif %}" href="{{ url_for('diagnostic_view', subject=subject) }}">Test</a>
+    <a class="nav {% if request.endpoint == 'plan_view' %}active{% endif %}" href="{{ url_for('plan_view', subject=subject) }}">Plan</a>
+    <a class="nav {% if request.endpoint == 'study_view' %}active{% endif %}" href="{{ url_for('study_view', subject=subject) }}">Study</a>
     {% endif %}
-  </header>
-  {% if subject is defined and subject %}
-  <nav class="steps">
-    <a href="{{ url_for('ingest_view', subject=subject) }}">1 · Ingest</a>
-    <a href="{{ url_for('intake_view', subject=subject) }}">2 · Intake</a>
-    <a href="{{ url_for('diagnostic_view', subject=subject) }}">3 · Diagnostic</a>
-    <a href="{{ url_for('plan_view', subject=subject) }}">4 · Plan</a>
-  </nav>
-  {% endif %}
-  <main>{% block content %}{% endblock %}</main>
-  <footer>Thin v1 UI — every step runs the same pipeline code as the CLI.</footer>
+    <div class="spacer"></div>
+    <div class="foot">
+      {% if offline %}<span class="badge offline">offline</span>{% else %}<span class="badge live">live</span>{% endif %}
+      {% if auth_enabled and session.get('sb') %}
+      <div style="margin-top:8px">{{ session['sb'].get('email', '') }}<br>
+        <form method="post" action="{{ url_for('auth.logout') }}"><button type="submit">Sign out</button></form>
+      </div>
+      {% endif %}
+    </div>
+  </aside>
+  <div class="main">
+    <div class="topbar">
+      <span class="crumb">{% block crumb %}{% if subject is defined and subject %}{{ subject | replace('-', ' ') }}{% else %}Your courses{% endif %}{% endblock %}</span>
+      <div class="grow"></div>
+    </div>
+    <main class="content">{% block content %}{% endblock %}</main>
+  </div>
+</div>
 </body>
 </html>

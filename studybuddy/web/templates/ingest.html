@@ -4,7 +4,7 @@
 <p class="muted">Upload a past exam, chapter, syllabus, or notes (<code>.txt</code>, <code>.md</code>, <code>.pdf</code>).
 Select several files at once, and come back anytime to add more — new material <b>merges</b> into the
 existing topics and question bank, it never replaces them.{% if status.topics %} You already have
-<b>{{ status.topics }}</b> topics and <b>{{ status.items }}</b> questions here.{% endif %}</p>
+<b>{{ status.topics }}</b> topics and <b>{{ status['items'] }}</b> questions here.{% endif %}</p>
 <form method="post" enctype="multipart/form-data" class="card">
   <label>Files
     <input type="file" name="material" accept=".txt,.md,.pdf" multiple required>

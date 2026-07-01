@@ -63,6 +63,74 @@ def _subject_status(subject: str) -> dict:
     }
 
 
+def _course_summary(subject: str) -> dict:
+    """Everything the dashboard/course pages show for one course, in one read."""
+    from .. import ids as ids_mod
+    from .. import sampling as sampling_mod
+    from .. import spacing as spacing_mod
+
+    root = _root()
+    learner = store.load_learner(_learner(), subject=subject, root=root)
+    status = _subject_status(subject)
+
+    by_concept = (learner.progress or {}).get("by_concept") or {}
+    seen = sum(c.get("seen", 0) for c in by_concept.values())
+    correct = sum(c.get("correct", 0) for c in by_concept.values())
+    # fold in diagnostic results for mastery when no study sessions yet
+    for r in learner.diagnostic_results:
+        for s in r.per_concept_rollup.values():
+            seen += s.get("seen", 0)
+            correct += s.get("correct", 0)
+    mastery = round(100 * correct / seen) if seen else None
+
+    due = len(spacing_mod.due_items(learner, now=ids_mod.utcnow()))
+    open_gaps = 0
+    sampling_open = False
+    if learner.gap_profile:
+        from ..models import GapStatus
+
+        open_gaps = sum(
+            1 for e in learner.gap_profile.entries if e.status is not GapStatus.resolved
+        )
+        if learner.diagnostic_results:
+            heur = store.load_heuristics(root=root)
+            sampling_open = not sampling_mod.stopping_status(learner, heur)["stop"]
+
+    # the one thing to do next (deterministic — the pipeline's own ordering)
+    if status["topics"] == 0:
+        action = ("Upload your first material", "materials_view",
+                  "Add a past exam, chapter, or notes — topics and real questions come from it.")
+    elif not status["has_intake"]:
+        action = ("Set up your intake", "intake_view",
+                  "Your exam format, hours, and per-topic confidence shape the whole plan.")
+    elif not status["graded"]:
+        action = ("Take your diagnostic", "diagnostic_view",
+                  "A short test that finds where understanding actually breaks down.")
+    elif sampling_open:
+        action = ("Continue adaptive testing", "diagnostic_view",
+                  "Your gaps aren't confirmed yet — a short focused batch narrows them.")
+    elif not status["has_plan"]:
+        action = ("Build your study plan", "plan_view",
+                  "Turn the confirmed gaps into a source-linked, time-honest plan.")
+    elif due:
+        action = (f"Study — {due} review{'s' if due != 1 else ''} due", "study_view",
+                  "Spaced reviews are back; a session keeps the schedule honest.")
+    else:
+        action = ("Study new material", "study_view",
+                  "Nothing due — pull new practice from your plan.")
+
+    return {
+        **status,
+        "subject": subject,
+        "mastery": mastery,
+        "due": due,
+        "open_gaps": open_gaps,
+        "action_label": action[0],
+        "action_endpoint": action[1],
+        "action_note": action[2],
+    }
+
+
 def _markdown_to_html(text: str) -> str:
     """Tiny, safe-enough markdown render for the plan one-pager (headings, bold, italics)."""
     from markupsafe import escape
@@ -174,7 +242,9 @@ def create_app(root=None, auth_provider=None) -> Flask:
     @app.get("/")
     def index():
         subjects = store.list_subjects(root=_root())
-        return render_template("index.html", subjects=subjects)
+        courses = [_course_summary(s) for s in subjects]
+        due_total = sum(c["due"] for c in courses)
+        return render_template("index.html", courses=courses, due_total=due_total)
 
     @app.post("/subject")
     def create_subject():
@@ -188,8 +258,35 @@ def create_app(root=None, auth_provider=None) -> Flask:
     @app.get("/s/<subject>")
     def subject_home(subject):
         return render_template(
-            "subject.html", subject=subject, status=_subject_status(subject)
+            "subject.html", subject=subject, course=_course_summary(subject)
         )
+
+    # -- materials tab -------------------------------------------------------------------
+
+    @app.get("/s/<subject>/materials")
+    def materials_view(subject):
+        materials = store.load_materials(subject, root=_root())
+        return render_template(
+            "materials.html", subject=subject, materials=materials,
+            status=_subject_status(subject),
+        )
+
+    @app.get("/s/<subject>/materials/<material_id>/raw")
+    def material_raw_view(subject, material_id):
+        materials = {m.id: m for m in store.load_materials(subject, root=_root())}
+        m = materials.get(material_id)
+        if m is None:
+            return _err("Material not found.", subject)
+        try:
+            text = store.load_material_raw(m.raw_ref, subject=subject, root=_root())
+        except (OSError, KeyError):
+            text = "(raw text unavailable)"
+        return render_template("material_raw.html", subject=subject, material=m, text=text)
+
+    @app.post("/s/<subject>/materials/<material_id>/delete")
+    def material_delete_view(subject, material_id):
+        store.delete_material(subject, material_id, root=_root())
+        return redirect(url_for("materials_view", subject=subject))
 
     # -- Stage 1: ingest ---------------------------------------------------------------
 

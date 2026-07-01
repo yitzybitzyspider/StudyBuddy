@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 {% block content %}
 <h1>Topics — {{ subject }}</h1>
-{% if summary %}<p class="ok">Ingested <b>{{ summary.concepts }}</b> concepts and <b>{{ summary.items }}</b> real questions from {{ summary.files | join(', ') }}.</p>{% endif %}
-{% if harvest %}<p class="ok">Web harvest ({{ harvest.standardization }} standardization, {{ harvest.searches }} search(es)): added <b>{{ harvest.items }}</b> real question(s) to the bank.</p>{% endif %}
+{% if summary %}<p class="ok">Ingested <b>{{ summary.concepts }}</b> concepts and <b>{{ summary['items'] }}</b> real questions from {{ summary.files | join(', ') }}.</p>{% endif %}
+{% if harvest %}<p class="ok">Web harvest ({{ harvest.standardization }} standardization, {{ harvest.searches }} search(es)): added <b>{{ harvest['items'] }}</b> real question(s) to the bank.</p>{% endif %}
 {% if rows %}
   <ul class="tree">
     {% for depth, name in rows %}<li class="d{{ depth }}">{{ name }}</li>{% endfor %}

@@ -129,6 +129,11 @@ def add_material(subject: str, material: Material, *, root=None) -> None:
     _backend(root).add_material(subject, material)
 
 
+def delete_material(subject: str, material_id: str, *, root=None) -> None:
+    """Remove a material record (+ its raw text). Concepts/items it produced stay."""
+    _backend(root).delete_material(subject, material_id)
+
+
 def save_material_raw(material_id: str, text: str, *, subject: str, root=None) -> str:
     """Persist raw ingested text; returns the backend-meaningful raw_ref."""
     return _backend(root).save_material_raw(subject, material_id, text)

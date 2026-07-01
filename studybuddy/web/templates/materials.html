@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %} — Materials{% endblock %}
+{% block content %}
+<h1>Materials</h1>
+<p class="muted">Everything the course knows comes from here. New uploads <b>merge</b> into the
+existing topics and question bank — they never replace them.</p>
+
+<form method="post" action="{{ url_for('ingest_view', subject=subject) }}"
+      enctype="multipart/form-data" class="upload-zone">
+  <b>Add material</b> — past exam, chapter, syllabus, or notes (.txt, .md, .pdf; several at once)
+  <input type="file" name="material" accept=".txt,.md,.pdf" multiple required>
+  <label style="max-width:300px;margin:8px auto">Type
+    <select name="type">
+      <option value="exam">past exam</option>
+      <option value="textbook">textbook</option>
+      <option value="section" selected>section / chapter</option>
+      <option value="notes">lecture notes</option>
+      <option value="syllabus">syllabus</option>
+      <option value="objectives">learning objectives</option>
+    </select>
+  </label>
+  <button type="submit">Upload &amp; extract →</button>
+  {% if not offline %}<p class="muted" style="margin-top:8px">Extraction runs two Claude calls per file.</p>{% endif %}
+</form>
+
+{% if materials %}
+<table class="table" style="margin-top:20px">
+  <thead><tr><th>Source</th><th>Type</th><th>Topics</th><th>Questions</th><th>Added</th><th></th></tr></thead>
+  <tbody>
+    {% for m in materials %}
+    <tr>
+      <td><a href="{{ url_for('material_raw_view', subject=subject, material_id=m.id) }}">{{ m.source }}</a></td>
+      <td><span class="badge gray">{{ m.type.value }}</span></td>
+      <td>{{ m.extracted_concepts | length }}</td>
+      <td>{{ m.harvested_items | length }}</td>
+      <td class="muted">{{ m.ingested_at.strftime('%b %d, %Y') }}</td>
+      <td>
+        <form method="post" action="{{ url_for('material_delete_view', subject=subject, material_id=m.id) }}"
+              onsubmit="return confirm('Remove this material record? Topics and questions already extracted stay in the course.')">
+          <button type="submit" class="btn small danger">Remove</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="muted" style="margin-top:18px">No materials yet — the upload above is the first step of the whole flow.</p>
+{% endif %}
+{% endblock %}

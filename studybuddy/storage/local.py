@@ -84,6 +84,13 @@ class LocalBackend:
         materials.append(material)
         _write_json(self._subject_path("materials", subject), _dump_list(materials))
 
+    def delete_material(self, subject: str, material_id: str) -> None:
+        materials = [m for m in self.load_materials(subject) if m.id != material_id]
+        _write_json(self._subject_path("materials", subject), _dump_list(materials))
+        raw = self.root / "materials" / "raw" / f"{material_id}.txt"
+        if raw.exists():
+            raw.unlink()
+
     def save_material_raw(self, subject: str, material_id: str, text: str) -> str:
         path = self.root / "materials" / "raw" / f"{material_id}.txt"
         path.parent.mkdir(parents=True, exist_ok=True)
