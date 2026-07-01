@@ -242,6 +242,8 @@ def _make_entry(
     status: ValidationStatus,
     disposition: Disposition,
 ) -> RunLogEntry:
+    from . import usercontext
+
     return RunLogEntry(
         id=run_id,
         phase=phase,
@@ -251,6 +253,7 @@ def _make_entry(
         raw_output_ref=raw_output_ref,
         validation_status=status,
         disposition=disposition,
+        user_id=usercontext.get_user_id(),
         ts=ids.utcnow(),
     )
 

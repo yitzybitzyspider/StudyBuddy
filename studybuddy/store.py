@@ -35,8 +35,11 @@ def _backend(root=None) -> LocalBackend:
 
 
 def current_learner() -> str:
-    """The learner id for the current context (the user id in platform mode; Loop 27)."""
-    return DEFAULT_LEARNER
+    """The learner id for the current context: the signed-in user's id in platform mode,
+    the single default learner otherwise."""
+    from . import usercontext
+
+    return usercontext.get_user_id() or DEFAULT_LEARNER
 
 
 def concept_id(name: str) -> str:

@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %} — Create account{% endblock %}
+{% block content %}
+<h1>Create your account</h1>
+{% if error %}<p class="err">{{ error }}</p>{% endif %}
+<form method="post" class="card auth-form">
+  <label>Email <input type="email" name="email" required autofocus></label>
+  <label>Password <input type="password" name="password" minlength="6" required></label>
+  <button type="submit">Create account →</button>
+</form>
+<p class="muted">Already have one? <a href="{{ url_for('auth.login') }}">Sign in</a></p>
+{% endblock %}

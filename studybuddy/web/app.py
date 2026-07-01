@@ -112,19 +112,28 @@ def _err(message: str, subject: str | None = None, code: int = 200):
 # --- app factory ----------------------------------------------------------------------
 
 
-def create_app(root=None) -> Flask:
+def create_app(root=None, auth_provider=None) -> Flask:
+    import os
+    import secrets
+
+    from . import auth as auth_mod
+
     app = Flask(__name__)
     resolved = paths.knowledge_root(root)
     for d in paths.KNOWLEDGE_DIRS:
         (resolved / d).mkdir(parents=True, exist_ok=True)
     (resolved / "runs" / "blobs").mkdir(parents=True, exist_ok=True)
-    (resolved / "materials" / "uploads").mkdir(parents=True, exist_ok=True)
     seed.seed_knowledge_layer(root=resolved)  # idempotent
     app.config["SB_ROOT"] = str(resolved)
+    # Signs the session cookie. Set FLASK_SECRET_KEY for stable sessions across restarts
+    # (required in platform mode); local no-auth mode tolerates a per-process key.
+    app.secret_key = os.environ.get("FLASK_SECRET_KEY") or secrets.token_hex(32)
     app.jinja_env.filters["md"] = _markdown_to_html
-    import os
 
     app.jinja_env.globals["offline"] = bool(os.environ.get("STUDYBUDDY_OFFLINE"))
+    provider = auth_provider or auth_mod.default_provider()
+    auth_mod.install(app, provider)
+    app.jinja_env.globals["auth_enabled"] = provider.enabled
 
     # Catch-all: turn any unhandled exception into the friendly error page (with the real
     # message) instead of a raw 500, and keep the traceback in the server log.

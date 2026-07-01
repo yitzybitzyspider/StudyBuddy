@@ -364,6 +364,8 @@ class RunLogEntry(_Base):
     validation_status: ValidationStatus
     disposition: Disposition
     human_override: Optional[Any] = None
+    # Who was acting when this call ran (platform mode). Defaulted so old JSONL still parses.
+    user_id: Optional[str] = None
     ts: datetime
 
 
