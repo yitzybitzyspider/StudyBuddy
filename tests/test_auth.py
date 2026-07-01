@@ -125,3 +125,44 @@ def test_runlog_entries_carry_user_id(tmp_path, monkeypatch):
 
     entries = RunLog(tmp_path).read_all()
     assert entries and all(e.user_id == "user_42" for e in entries)
+
+
+def test_supabase_auth_provider_translation():
+    """SupabaseAuth maps supabase-py responses/errors onto the provider interface."""
+    from types import SimpleNamespace
+
+    from studybuddy.web.supabase_auth import SupabaseAuth
+
+    def res(session=True):
+        user = SimpleNamespace(id="uid-1", email="a@x.com")
+        sess = SimpleNamespace(
+            access_token="at", refresh_token="rt", expires_at=123
+        ) if session else None
+        return SimpleNamespace(user=user, session=sess)
+
+    class FakeGoTrue:
+        def sign_up(self, creds):
+            return res(session=creds["email"] != "confirm@x.com")
+
+        def sign_in_with_password(self, creds):
+            if creds["password"] != "right":
+                raise Exception("Invalid login credentials")
+            return res()
+
+        def refresh_session(self, token):
+            if token != "rt":
+                raise Exception("refresh_token_not_found")
+            return res()
+
+    provider = SupabaseAuth(client=SimpleNamespace(auth=FakeGoTrue()))
+
+    s = provider.sign_up("a@x.com", "secret1")
+    assert s == {"user_id": "uid-1", "email": "a@x.com", "access_token": "at",
+                 "refresh_token": "rt", "expires_at": 123}
+    with pytest.raises(AuthError, match="check your email"):
+        provider.sign_up("confirm@x.com", "secret1")  # confirmations-on path
+    with pytest.raises(AuthError, match="Invalid login"):
+        provider.sign_in("a@x.com", "wrong")
+    assert provider.refresh("rt")["access_token"] == "at"
+    with pytest.raises(AuthError):
+        provider.refresh("stale")
