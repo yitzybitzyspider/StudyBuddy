@@ -19,6 +19,8 @@ from . import store, timebudget as timebudget_mod
 from .models import ConstraintResolution, PlanTopic, Reference, RefKind, StudyPlan
 from .wrapper import run_call
 
+PLAN_DOC = "study-plan.md"
+
 
 def _item_sequences(concept_ids, items) -> dict[str, list[str]]:
     """Item ids per concept (foundational->synthesis ordering is refined in Phase 4)."""
@@ -38,7 +40,7 @@ def compose(
     learner_id: str = store.DEFAULT_LEARNER,
     resolution: ConstraintResolution | str | None = None,
 ) -> dict:
-    state = store.load_learner(learner_id, root=root)
+    state = store.load_learner(learner_id, subject=subject, root=root)
     concepts = store.load_concepts(subject, root=root)
     by_id = {c.id: c for c in concepts}
     by_name = {c.name: c.id for c in concepts}
@@ -128,15 +130,16 @@ def compose(
         version="v1",
     )
     state.study_plan = plan
-    store.save_learner(state, root=root)
+    store.save_learner(state, subject=subject, root=root)
 
-    md_path = _render_markdown(
+    markdown = _render_markdown(
         subject, plan, content, prose_by_concept, name_by_id, budget,
         root=root, learner_id=learner_id,
     )
     return {
         "study_plan": plan,
-        "markdown_path": md_path,
+        "markdown": markdown,
+        "markdown_path": store.doc_path(learner_id, subject, PLAN_DOC, root=root),
         "overview": content.get("overview", ""),
         "budget": budget,
     }
@@ -167,10 +170,9 @@ def _render_markdown(subject, plan, content, prose_by_concept, name_by_id, budge
             lines.append(f"\n_Sources:_ {refs}")
         lines.append(f"\n_Practice ({len(topic.item_sequence)} items):_ foundational → depth → synthesis")
         lines.append("")
-    path = store.learner_file(learner_id, "study-plan.md", root=root)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("\n".join(lines), encoding="utf-8")
-    return path
+    markdown = "\n".join(lines)
+    store.put_doc(learner_id, subject, PLAN_DOC, markdown, root=root)
+    return markdown
 
 
 def steer(

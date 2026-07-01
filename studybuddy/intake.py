@@ -18,7 +18,7 @@ from .models import Intake
 TEMPLATE_NAME = "intake.template.json"
 
 
-def build_template(subject: str, *, root=None, learner_id=store.DEFAULT_LEARNER) -> Path:
+def build_template(subject: str, *, root=None, learner_id=store.DEFAULT_LEARNER):
     concepts = store.load_concepts(subject, root=root)
     template = {
         "_instructions": (
@@ -33,29 +33,36 @@ def build_template(subject: str, *, root=None, learner_id=store.DEFAULT_LEARNER)
         "baseline": "",
         "per_topic_confidence": {c.name: None for c in sorted(concepts, key=lambda x: x.name)},
     }
-    path = store.learner_file(learner_id, TEMPLATE_NAME, root=root)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(template, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    return path
+    store.put_doc(learner_id, subject, TEMPLATE_NAME, template, root=root)
+    return store.doc_path(learner_id, subject, TEMPLATE_NAME, root=root)
 
 
 def ingest_answers(
-    subject: str, answers_path, *, root=None, learner_id=store.DEFAULT_LEARNER
+    subject: str,
+    answers_path=None,
+    *,
+    answers: dict | None = None,
+    root=None,
+    learner_id=store.DEFAULT_LEARNER,
 ) -> Intake:
-    data = json.loads(Path(answers_path).read_text(encoding="utf-8"))
+    """Read filled intake answers (a dict, or a JSON file path) into learner state."""
+    if answers is None:
+        if answers_path is None:
+            raise ValueError("provide answers or answers_path")
+        answers = json.loads(Path(answers_path).read_text(encoding="utf-8"))
     confidence = {
         store.concept_id(name): float(value)
-        for name, value in (data.get("per_topic_confidence") or {}).items()
+        for name, value in (answers.get("per_topic_confidence") or {}).items()
         if value is not None
     }
     intake = Intake(
-        exam_format=(data.get("exam_format") or None),
-        total_study_time=data.get("total_study_time_hours"),
-        daily_availability=data.get("daily_availability_hours"),
-        baseline=(data.get("baseline") or None),
+        exam_format=(answers.get("exam_format") or None),
+        total_study_time=answers.get("total_study_time_hours"),
+        daily_availability=answers.get("daily_availability_hours"),
+        baseline=(answers.get("baseline") or None),
         per_topic_confidence=confidence,
     )
-    state = store.load_learner(learner_id, root=root)
+    state = store.load_learner(learner_id, subject=subject, root=root)
     state.intake = intake
-    store.save_learner(state, root=root)
+    store.save_learner(state, subject=subject, root=root)
     return intake

@@ -80,17 +80,25 @@ def grade_item(item: Item, response, *, root=None, client=None) -> tuple[bool, b
 def administer(
     subject: str,
     *,
+    answers: dict | None = None,
     answers_path=None,
     root=None,
     client=None,
     learner_id: str = store.DEFAULT_LEARNER,
 ) -> dict:
-    if answers_path is None:
-        answers_path = store.learner_file(learner_id, diagnostic_mod.ANSWERS_NAME, root=root)
-    data = json.loads(Path(answers_path).read_text(encoding="utf-8"))
+    """Grade a filled diagnostic. Answers come in-memory (web), from a file path (CLI
+    --answers), or from the stored working doc (default)."""
+    if answers is not None:
+        data = answers
+    elif answers_path is not None:
+        data = json.loads(Path(answers_path).read_text(encoding="utf-8"))
+    else:
+        data = store.get_doc(learner_id, subject, diagnostic_mod.ANSWERS_NAME, root=root)
+        if data is None:
+            raise FileNotFoundError("no filled diagnostic answers found; run compose first")
 
     bank = {i.id: i for i in store.load_items(subject, root=root)}
-    diag = store.load_diagnostic(learner_id, root=root) or {}
+    diag = store.load_diagnostic(learner_id, subject=subject, root=root) or {}
     confidence_k = float(store.load_heuristics(root=root).calibration.get("confidence_k", 4))
 
     responses: list[ItemResponse] = []
@@ -138,17 +146,17 @@ def administer(
         generated_at=ids.utcnow(),
     )
 
-    state = store.load_learner(learner_id, root=root)
+    state = store.load_learner(learner_id, subject=subject, root=root)
     state.diagnostic_results.append(result)
     now = ids.utcnow()  # spacing accrual (Track A): schedule each answered item for review
     for item_id, quality in qualities:
         spacing_mod.update_schedule(state, item_id, quality, now=now)
-    store.save_learner(state, root=root)
+    store.save_learner(state, subject=subject, root=root)
     store.save_items(subject, list(bank.values()), root=root)  # persist calibration updates
 
     if diag:
         diag["diagnostic_result_id"] = result.id
-        store.save_diagnostic(learner_id, diag, root=root)
+        store.save_diagnostic(learner_id, diag, subject=subject, root=root)
 
     correct_count = sum(1 for f in feedback if f["correct"])
     return {

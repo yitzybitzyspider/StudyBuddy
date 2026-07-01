@@ -95,5 +95,5 @@ def test_result_appended_to_learner_state(tmp_path, fake_client):
     mc, num, short = _setup(tmp_path)
     answers = _answers_file(tmp_path, [{"item_id": mc.id, "response": "B"}])
     administer.administer("finance", answers_path=answers, root=tmp_path)
-    state = store.load_learner(root=tmp_path)
+    state = store.load_learner(subject="finance", root=tmp_path)
     assert len(state.diagnostic_results) == 1

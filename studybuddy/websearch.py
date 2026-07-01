@@ -56,16 +56,14 @@ _SAMPLE_CHARS = 4000
 
 def _sample_material(subject: str, *, root) -> str:
     """A short slice of the subject's raw material, for the standardization judgment."""
-    from . import paths
-
-    base = paths.knowledge_root(root)
     chunks: list[str] = []
     for material in store.load_materials(subject, root=root):
         if not material.raw_ref:
             continue
-        path = base / material.raw_ref
-        if path.exists():
-            chunks.append(path.read_text(encoding="utf-8"))
+        try:
+            chunks.append(store.load_material_raw(material.raw_ref, subject=subject, root=root))
+        except (OSError, KeyError):
+            continue
         if sum(len(c) for c in chunks) >= _SAMPLE_CHARS:
             break
     return "\n\n".join(chunks)[:_SAMPLE_CHARS]

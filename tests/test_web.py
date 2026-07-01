@@ -45,7 +45,7 @@ def test_full_flow_through_the_browser(client):
     # intake
     r = c.post("/s/finance/intake", data={"exam_format": "closed book", "total_study_time_hours": "20"})
     assert r.status_code == 302
-    assert store.load_learner(root=root).intake is not None
+    assert store.load_learner(subject="finance", root=root).intake is not None
 
     # compose + take the diagnostic
     r = c.post("/s/finance/compose", data={"size": "3"})
@@ -53,7 +53,7 @@ def test_full_flow_through_the_browser(client):
     assert c.get("/s/finance/diagnostic").status_code == 200
 
     answers = json.loads(
-        store.learner_file(store.DEFAULT_LEARNER, diagnostic_mod.ANSWERS_NAME, root=root).read_text()
+        store.doc_path(store.DEFAULT_LEARNER, "finance", diagnostic_mod.ANSWERS_NAME, root=root).read_text()
     )
     form = {f"resp_{q['item_id']}": "an answer" for q in answers["questions"]}
     r = c.post("/s/finance/diagnostic", data=form)
@@ -65,7 +65,7 @@ def test_full_flow_through_the_browser(client):
     r = c.get("/s/finance/plan")
     assert r.status_code == 200
     assert b"Study plan" in r.data
-    assert store.load_learner(root=root).study_plan is not None
+    assert store.load_learner(subject="finance", root=root).study_plan is not None
 
 
 def test_ingest_rejects_bad_file_type(client):

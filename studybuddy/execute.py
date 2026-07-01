@@ -40,7 +40,7 @@ def next_session(
     size: int | None = None, now=None,
 ) -> dict:
     """Assemble the next study session: due reviews first, then new items, interleaved."""
-    state = store.load_learner(learner_id, root=root)
+    state = store.load_learner(learner_id, subject=subject, root=root)
     items = store.load_items(subject, root=root)
     item_by_id = {it.id: it for it in items}
     now = now or ids.utcnow()
@@ -87,25 +87,34 @@ def next_session(
         "subject": subject,
         "questions": questions,
     }
-    path = store.learner_file(learner_id, SESSION_NAME, root=root)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    store.put_doc(learner_id, subject, SESSION_NAME, payload, root=root)
     return {
-        "session_path": path, "item_ids": ordered,
+        "session_path": store.doc_path(learner_id, subject, SESSION_NAME, root=root),
+        "session": payload,
+        "item_ids": ordered,
         "due_count": len(due), "new_count": len(chosen) - len(due),
     }
 
 
 def record_session(
-    subject: str, *, answers_path=None, root=None, client=None,
+    subject: str, *, answers: dict | None = None, answers_path=None, root=None, client=None,
     learner_id: str = store.DEFAULT_LEARNER, now=None,
 ) -> dict:
-    """Grade a completed session, reschedule each item, and track progress."""
-    if answers_path is None:
-        answers_path = store.learner_file(learner_id, SESSION_NAME, root=root)
-    data = json.loads(Path(answers_path).read_text(encoding="utf-8"))
+    """Grade a completed session, reschedule each item, and track progress.
+
+    Answers come in-memory (web), from a file path (CLI --answers), or from the stored
+    session working doc (default).
+    """
+    if answers is not None:
+        data = answers
+    elif answers_path is not None:
+        data = json.loads(Path(answers_path).read_text(encoding="utf-8"))
+    else:
+        data = store.get_doc(learner_id, subject, SESSION_NAME, root=root)
+        if data is None:
+            raise FileNotFoundError("no study session found; run `study` first")
     bank = {i.id: i for i in store.load_items(subject, root=root)}
-    state = store.load_learner(learner_id, root=root)
+    state = store.load_learner(learner_id, subject=subject, root=root)
     confidence_k = float(store.load_heuristics(root=root).calibration.get("confidence_k", 4))
     now = now or ids.utcnow()
 
@@ -139,7 +148,7 @@ def record_session(
     progress["last_session_at"] = now.isoformat()
     state.progress = progress
 
-    store.save_learner(state, root=root)
+    store.save_learner(state, subject=subject, root=root)
     store.save_items(subject, list(bank.values()), root=root)  # persist calibration
 
     upcoming = spacing_mod.due_items(state, now=now)

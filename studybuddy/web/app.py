@@ -43,11 +43,15 @@ def _root() -> Path:
     return Path(current_app.config["SB_ROOT"])
 
 
+def _learner() -> str:
+    return store.current_learner()
+
+
 def _subject_status(subject: str) -> dict:
     root = _root()
     concepts = store.load_concepts(subject, root=root)
-    learner = store.load_learner(root=root)
-    diag = store.load_diagnostic(root=root)
+    learner = store.load_learner(_learner(), subject=subject, root=root)
+    diag = store.load_diagnostic(_learner(), subject=subject, root=root)
     return {
         "topics": len(concepts),
         "items": len(store.load_items(subject, root=root)),
@@ -138,15 +142,16 @@ def create_app(root=None) -> Flask:
 
     @app.get("/")
     def index():
-        root = _root()
-        subjects = sorted(p.stem for p in (root / "concepts").glob("*.json"))
+        subjects = store.list_subjects(root=_root())
         return render_template("index.html", subjects=subjects)
 
     @app.post("/subject")
     def create_subject():
-        name = store.ids.slugify(request.form.get("subject", ""))
+        raw_name = request.form.get("subject", "")
+        name = store.ids.slugify(raw_name)
         if not name:
             return _err("Please enter a subject name.")
+        store.ensure_subject(name, raw_name.strip() or name, root=_root())
         return redirect(url_for("subject_home", subject=name))
 
     @app.get("/s/<subject>")
@@ -164,7 +169,9 @@ def create_app(root=None) -> Flask:
         files = request.files.getlist("material")
         mtype = request.form.get("type", "section")
         saved: list[str] = []
-        updir = _root() / "materials" / "uploads"
+        # per-request temp dir: uploads are transient input to ingest(); the durable copy is
+        # persisted by save_material_raw through the storage backend
+        updir = Path(tempfile.mkdtemp(prefix="sb-upload-"))
         for f in files:
             if not f or not f.filename:
                 continue
@@ -232,12 +239,7 @@ def create_app(root=None) -> Flask:
             "baseline": request.form.get("baseline", ""),
             "per_topic_confidence": confidence,
         }
-        with tempfile.NamedTemporaryFile(
-            "w", suffix=".json", delete=False, encoding="utf-8"
-        ) as tf:
-            json.dump(answers, tf, ensure_ascii=False)
-            tmp = tf.name
-        intake_mod.ingest_answers(subject, tmp, root=_root())
+        intake_mod.ingest_answers(subject, answers=answers, root=_root())
         return redirect(url_for("subject_home", subject=subject))
 
     # -- Stage 4/5: compose, take, grade -----------------------------------------------
@@ -253,20 +255,17 @@ def create_app(root=None) -> Flask:
 
     @app.route("/s/<subject>/diagnostic", methods=["GET", "POST"])
     def diagnostic_view(subject):
-        answers_path = store.learner_file(
-            store.DEFAULT_LEARNER, diagnostic_mod.ANSWERS_NAME, root=_root()
-        )
-        if not answers_path.exists():
+        data = store.get_doc(_learner(), subject, diagnostic_mod.ANSWERS_NAME, root=_root())
+        if not isinstance(data, dict):
             return _err("No diagnostic composed yet. Compose one first.", subject)
-        data = json.loads(answers_path.read_text(encoding="utf-8"))
         if request.method == "GET":
             return render_template("diagnostic.html", subject=subject, questions=data["questions"])
         for q in data["questions"]:
             q["response"] = request.form.get(f"resp_{q['item_id']}", "")
             q["felt_lucky"] = request.form.get(f"lucky_{q['item_id']}") == "on"
-        answers_path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+        store.put_doc(_learner(), subject, diagnostic_mod.ANSWERS_NAME, data, root=_root())
         try:
-            result = administer_mod.administer(subject, answers_path=answers_path, root=_root())
+            result = administer_mod.administer(subject, answers=data, root=_root())
         except ClaudeCallError as e:
             return _err(f"Grading failed: {e}", subject)
         return render_template(
@@ -285,7 +284,7 @@ def create_app(root=None) -> Flask:
 
     @app.get("/s/<subject>/plan")
     def plan_view(subject):
-        learner = store.load_learner(root=_root())
+        learner = store.load_learner(_learner(), subject=subject, root=_root())
         if learner.gap_profile is None:
             return _err("Run the diagnosis first.", subject)
         resolution = request.args.get("resolve")  # compress | extend (Stage 8)
@@ -295,25 +294,23 @@ def create_app(root=None) -> Flask:
             result = plan_mod.compose(subject, root=_root(), resolution=resolution)
         except (ValueError, ClaudeCallError) as e:
             return _err(f"Plan generation failed: {e}", subject)
-        markdown = result["markdown_path"].read_text(encoding="utf-8")
         return render_template(
-            "plan.html", subject=subject, markdown=markdown,
+            "plan.html", subject=subject, markdown=result["markdown"],
             gaps=learner.gap_profile.entries, budget=result.get("budget"),
         )
 
     @app.route("/s/<subject>/study", methods=["GET", "POST"])
     def study_view(subject):
-        session_path = store.learner_file(
-            store.DEFAULT_LEARNER, execute_mod.SESSION_NAME, root=_root()
-        )
-        if request.method == "POST" and request.form.get("answers") and session_path.exists():
-            data = json.loads(session_path.read_text(encoding="utf-8"))
+        if request.method == "POST" and request.form.get("answers"):
+            data = store.get_doc(_learner(), subject, execute_mod.SESSION_NAME, root=_root())
+            if not isinstance(data, dict):
+                return _err("No study session in progress. Start one first.", subject)
             for q in data["questions"]:
                 q["response"] = request.form.get(f"resp_{q['item_id']}", "")
                 q["felt_lucky"] = request.form.get(f"lucky_{q['item_id']}") == "on"
-            session_path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+            store.put_doc(_learner(), subject, execute_mod.SESSION_NAME, data, root=_root())
             try:
-                result = execute_mod.record_session(subject, answers_path=session_path, root=_root())
+                result = execute_mod.record_session(subject, answers=data, root=_root())
             except ClaudeCallError as e:
                 return _err(f"Recording the session failed: {e}", subject)
             return render_template("session_done.html", subject=subject, result=result)
@@ -321,9 +318,8 @@ def create_app(root=None) -> Flask:
         info = execute_mod.next_session(subject, root=_root())
         if not info["item_ids"]:
             return render_template("session_done.html", subject=subject, result=None)
-        data = json.loads(session_path.read_text(encoding="utf-8"))
         return render_template(
-            "session.html", subject=subject, questions=data["questions"],
+            "session.html", subject=subject, questions=info["session"]["questions"],
             due_count=info["due_count"], new_count=info["new_count"],
         )
 

@@ -90,14 +90,16 @@ def ingest(
     root=None,
     client=None,
 ) -> dict:
-    """Ingest one or more material files into ``subject``. Returns a summary."""
+    """Ingest one or more material files into ``subject``. Additive: new material merges
+    into the existing concepts and item bank, it never replaces them."""
+    store.ensure_subject(subject, root=root)
     summary = {"materials": 0, "concepts": 0, "items": 0, "files": []}
     for f in files:
         path = Path(f)
         text = read_material_text(path)
 
         material_id = ids.ulid_id("material")
-        raw_ref = store.save_material_raw(material_id, text, root=root)
+        raw_ref = store.save_material_raw(material_id, text, subject=subject, root=root)
         material = Material(
             id=material_id,
             type=material_type,

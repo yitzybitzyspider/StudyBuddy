@@ -65,7 +65,7 @@ def _setup_subject(tmp_path, with_bank=True, confidence=None):
     if confidence is not None:
         store.save_learner(
             LearnerState(learner_id=store.DEFAULT_LEARNER, intake=Intake(per_topic_confidence=confidence)),
-            root=tmp_path,
+            subject="finance", root=tmp_path,
         )
     return npv, disc
 
@@ -90,7 +90,7 @@ def test_compose_retrieval_first_no_generation(tmp_path):
     assert len(answers["questions"]) == 2
     assert all("response" in q for q in answers["questions"])
     # working diagnostic persisted
-    assert store.load_diagnostic(root=tmp_path)["item_ids"] == diag.item_ids
+    assert store.load_diagnostic(subject="finance", root=tmp_path)["item_ids"] == diag.item_ids
 
 
 def test_compose_generates_to_fill_and_verifies(tmp_path, fake_client):

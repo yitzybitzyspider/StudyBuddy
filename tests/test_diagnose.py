@@ -40,7 +40,7 @@ def _setup(tmp_path, rollup, confidence=None):
     intake = Intake(per_topic_confidence=confidence) if confidence else None
     store.save_learner(
         LearnerState(learner_id=store.DEFAULT_LEARNER, intake=intake, diagnostic_results=[result]),
-        root=tmp_path,
+        subject="finance", root=tmp_path,
     )
 
 
@@ -60,7 +60,7 @@ def test_deterministic_classification_foundational_and_speed(tmp_path, fake_clie
     assert [e.phase for e in RunLog(tmp_path).read_all()] == ["Stage 6: interpret_gaps"]
 
     # the stored DiagnosticResult got its gap_classification filled
-    assert store.load_learner(root=tmp_path).diagnostic_results[-1].gap_classification
+    assert store.load_learner(subject="finance", root=tmp_path).diagnostic_results[-1].gap_classification
 
 
 def test_depth_gap_for_partial_mastery(tmp_path, fake_client):
@@ -154,7 +154,7 @@ def test_material_aware_depth_when_only_hard_band_breaks(tmp_path, fake_client):
         generated_at=ids.utcnow(),
     )
     store.save_learner(
-        LearnerState(learner_id=store.DEFAULT_LEARNER, diagnostic_results=[result]), root=tmp_path
+        LearnerState(learner_id=store.DEFAULT_LEARNER, diagnostic_results=[result]), subject="finance", root=tmp_path
     )
 
     client = fake_client(outputs=[INTERP_OUT])
@@ -170,13 +170,13 @@ def test_gap_confidence_accrues_and_status_confirms_across_batches(tmp_path, fak
 
     _setup(tmp_path, {"concept_npv": {"seen": 4, "correct": 1, "correct_rate": 0.25, "blanks": 0}})
     # seed a prior hypothesis for the same concept+gap_type at 0.5
-    state = store.load_learner(root=tmp_path)
+    state = store.load_learner(subject="finance", root=tmp_path)
     state.gap_profile = GapProfile(
         learner_id=store.DEFAULT_LEARNER,
         entries=[GapEntry(concept_id="concept_npv", gap_type="foundational", confidence=0.5)],
         updated_at=ids.utcnow(),
     )
-    store.save_learner(state, root=tmp_path)
+    store.save_learner(state, subject="finance", root=tmp_path)
 
     # interp returns the same gap at 0.7 -> noisy-OR 0.5 + 0.5*0.7 = 0.85, status confirmed
     client = fake_client(outputs=[INTERP_OUT.replace('"NPV"', '"concept_npv"')])

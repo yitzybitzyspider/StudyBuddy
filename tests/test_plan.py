@@ -68,7 +68,7 @@ def test_compose_plan_writes_structured_plan_and_markdown(tmp_path, fake_client)
                 updated_at=ids.utcnow(),
             ),
         ),
-        root=tmp_path,
+        subject="finance", root=tmp_path,
     )
 
     client = fake_client(outputs=[COMPOSE_OUT])
@@ -83,7 +83,7 @@ def test_compose_plan_writes_structured_plan_and_markdown(tmp_path, fake_client)
 
     md = result["markdown_path"].read_text()
     assert "Net Present Value" in md and "Rebuild NPV" in md
-    assert store.load_learner(root=tmp_path).study_plan is not None
+    assert store.load_learner(subject="finance", root=tmp_path).study_plan is not None
     assert [e.phase for e in RunLog(tmp_path).read_all()] == ["Stage 8: compose_plan"]
 
 

@@ -243,7 +243,7 @@ def _merge_gap_entries(prior, fresh, rollup) -> list[GapEntry]:
 
 
 def diagnose(subject: str, *, root=None, client=None, learner_id: str = store.DEFAULT_LEARNER) -> dict:
-    state = store.load_learner(learner_id, root=root)
+    state = store.load_learner(learner_id, subject=subject, root=root)
     if not state.diagnostic_results:
         raise ValueError("no diagnostic results; run `administer` first")
     result = state.diagnostic_results[-1]
@@ -307,5 +307,5 @@ def diagnose(subject: str, *, root=None, client=None, learner_id: str = store.DE
 
     profile = GapProfile(learner_id=learner_id, entries=entries, updated_at=ids.utcnow())
     state.gap_profile = profile
-    store.save_learner(state, root=root)
+    store.save_learner(state, subject=subject, root=root)
     return {"gap_profile": profile, "classification": classification}

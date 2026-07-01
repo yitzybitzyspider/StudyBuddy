@@ -46,7 +46,7 @@ def test_ingest_answers_maps_to_learner_state(tmp_path):
     # names mapped to concept ids; None entries skipped
     assert result.per_topic_confidence == {"concept_net-present-value": 0.4}
 
-    persisted = store.load_learner(root=tmp_path).intake
+    persisted = store.load_learner(subject="finance", root=tmp_path).intake
     assert persisted is not None and persisted.baseline == "rusty"
 
 
@@ -56,7 +56,7 @@ def test_cli_intake_template_then_ingest(tmp_path, capsys):
     assert cli.cmd_intake(base) == 0
     assert "Wrote intake template" in capsys.readouterr().out
 
-    template_path = store.learner_file(store.DEFAULT_LEARNER, intake.TEMPLATE_NAME, root=tmp_path)
+    template_path = store.doc_path(store.DEFAULT_LEARNER, "finance", intake.TEMPLATE_NAME, root=tmp_path)
     data = json.loads(template_path.read_text())
     data["exam_format"] = "mixed"
     data["per_topic_confidence"]["Discounting"] = 0.7
@@ -67,4 +67,4 @@ def test_cli_intake_template_then_ingest(tmp_path, capsys):
     )
     assert cli.cmd_intake(ingest_args) == 0
     assert "Intake captured" in capsys.readouterr().out
-    assert store.load_learner(root=tmp_path).intake.exam_format == "mixed"
+    assert store.load_learner(subject="finance", root=tmp_path).intake.exam_format == "mixed"

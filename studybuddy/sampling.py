@@ -118,7 +118,7 @@ def next_batch(subject: str, *, root=None, client=None, learner_id: str = store.
     (``status['reason']`` says why). When True, the usual answers file is written for the
     user to fill (then administer + diagnose, then call again).
     """
-    state = store.load_learner(learner_id, root=root)
+    state = store.load_learner(learner_id, subject=subject, root=root)
     heuristics = store.load_heuristics(root=root)
     if not state.diagnostic_results:
         raise ValueError("no diagnostic yet; compose + administer + diagnose a first round first")

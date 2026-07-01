@@ -92,5 +92,5 @@ def test_full_cycle(tmp_path, fake_client):
     ]
 
     # learner state holds the full record
-    state = store.load_learner(root=tmp_path)
+    state = store.load_learner(subject="finance", root=tmp_path)
     assert state.intake and state.diagnostic_results and state.gap_profile and state.study_plan

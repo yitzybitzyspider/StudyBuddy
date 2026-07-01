@@ -93,7 +93,7 @@ def _item_from_sourced(
     )
 
 
-def _write_answers_file(diagnostic: Diagnostic, items: list[Item], name_by_id, *, root, learner_id):
+def _write_answers_doc(diagnostic: Diagnostic, items: list[Item], name_by_id, *, root, learner_id):
     by_id = {i.id: i for i in items}
     questions = []
     for iid in diagnostic.item_ids:
@@ -121,10 +121,8 @@ def _write_answers_file(diagnostic: Diagnostic, items: list[Item], name_by_id, *
         "subject": diagnostic.subject,
         "questions": questions,
     }
-    path = store.learner_file(learner_id, ANSWERS_NAME, root=root)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    return path
+    store.put_doc(learner_id, diagnostic.subject, ANSWERS_NAME, payload, root=root)
+    return store.doc_path(learner_id, diagnostic.subject, ANSWERS_NAME, root=root)
 
 
 def compose(
@@ -140,7 +138,7 @@ def compose(
     if not concepts:
         raise ValueError(f"no concepts for subject {subject!r}; run `ingest` first")
     bank = store.load_items(subject, root=root)
-    state = store.load_learner(learner_id, root=root)
+    state = store.load_learner(learner_id, subject=subject, root=root)
     confidence = state.intake.per_topic_confidence if state.intake else {}
     target = size or int(store.load_heuristics(root=root).sampling_rules.get("diagnostic_size", 20))
 
@@ -243,10 +241,10 @@ def compose(
         retrieved=retrieved,
         generated=len(new_items),
     )
-    store.save_diagnostic(learner_id, diagnostic.model_dump(mode="json"), root=root)
+    store.save_diagnostic(learner_id, diagnostic.model_dump(mode="json"), subject=subject, root=root)
 
     name_by_id = {c.id: c.name for c in concepts}
-    answers_path = _write_answers_file(
+    answers_path = _write_answers_doc(
         diagnostic, chosen, name_by_id, root=root, learner_id=learner_id
     )
 

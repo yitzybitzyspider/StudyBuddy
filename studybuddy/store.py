@@ -1,16 +1,15 @@
-"""Knowledge-layer persistence (Phase 1).
+"""Knowledge-layer persistence facade (Loop 26: backend-routed).
 
-Typed load/save for the artifacts the pipeline reads and writes. Everything is plain JSON
-under git (decision A2), partitioned by subject for the shared artifacts and by learner for
-learner state. There is no database and no ORM — just Pydantic models and files.
+Typed load/save for the artifacts the pipeline reads and writes. The engine calls these
+functions; a :mod:`studybuddy.storage` backend does the actual persistence:
 
-Layout:
-    concepts/<subject>.json       list[Concept]
-    items/<subject>.json          list[Item]               (the item bank)
-    materials/<subject>.json      list[Material]
-    materials/raw/<id>.txt        raw ingested text (Material.raw_ref points here)
-    learner/<lid>/state.json      LearnerState
-    learner/<lid>/diagnostic.json the active diagnostic cycle (working file)
+- ``LocalBackend`` (default): plain JSON under git, the original layout (decision A2).
+- ``SupabaseBackend`` (``STUDYBUDDY_BACKEND=supabase`` + a user context): per-user rows in
+  Postgres with RLS — the multi-user platform mode (DECISIONS §R).
+
+The knowledge-layer *product* stays local no matter what: heuristics, the prompt registry,
+the run log, and proposals never route to a database. Learner state is per
+``(learner, subject)`` — a subject's gap profile/plan/schedule never clobbers another's.
 """
 
 from __future__ import annotations
@@ -21,8 +20,23 @@ from typing import Any, Iterable
 
 from . import ids, paths
 from .models import Concept, HeuristicsConfig, Item, LearnerState, Material, Proposal
+from .storage.base import Doc
+from .storage.local import LocalBackend
 
 DEFAULT_LEARNER = "learner_default"
+
+# Working-doc names (the editable artifacts of a cycle).
+DIAGNOSTIC_DOC = "diagnostic.json"
+
+
+def _backend(root=None) -> LocalBackend:
+    """Resolve the storage backend. Loop 27/28 add user-context + Supabase dispatch here."""
+    return LocalBackend(paths.knowledge_root(root))
+
+
+def current_learner() -> str:
+    """The learner id for the current context (the user id in platform mode; Loop 27)."""
+    return DEFAULT_LEARNER
 
 
 def concept_id(name: str) -> str:
@@ -31,133 +45,136 @@ def concept_id(name: str) -> str:
 
 
 def load_heuristics(*, root=None) -> HeuristicsConfig:
-    """Load the deterministic heuristics config (seeded in Phase 0)."""
-    raw = _read_json(paths.knowledge_root(root) / "heuristics" / "config.json")
-    if raw is None:
-        raise FileNotFoundError("heuristics/config.json not found; run `studybuddy init`")
-    return HeuristicsConfig.model_validate(raw)
-
-
-# --- low-level json -------------------------------------------------------------------
-
-
-def _read_json(path: Path) -> Any:
+    """Load the deterministic heuristics config (product artifact: always local/git)."""
+    path = paths.knowledge_root(root) / "heuristics" / "config.json"
     if not path.exists():
-        return None
-    return json.loads(path.read_text(encoding="utf-8"))
+        raise FileNotFoundError("heuristics/config.json not found; run `studybuddy init`")
+    return HeuristicsConfig.model_validate(json.loads(path.read_text(encoding="utf-8")))
 
 
-def _write_json(path: Path, data: Any) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+# --- subjects ---------------------------------------------------------------------------
 
 
-def _dump_list(models: Iterable[Any]) -> list[dict]:
-    return [m.model_dump(mode="json") for m in models]
+def list_subjects(*, root=None) -> list[str]:
+    return _backend(root).list_subjects()
+
+
+def ensure_subject(subject: str, name: str | None = None, *, root=None) -> None:
+    _backend(root).ensure_subject(subject, name)
 
 
 # --- subject-scoped artifacts ---------------------------------------------------------
 
 
-def _subject_path(kind: str, subject: str, *, root) -> Path:
-    return paths.knowledge_root(root) / kind / f"{subject}.json"
-
-
 def load_concepts(subject: str, *, root=None) -> list[Concept]:
-    raw = _read_json(_subject_path("concepts", subject, root=root)) or []
-    return [Concept.model_validate(c) for c in raw]
+    return _backend(root).load_concepts(subject)
 
 
 def save_concepts(subject: str, concepts: Iterable[Concept], *, root=None) -> None:
-    _write_json(_subject_path("concepts", subject, root=root), _dump_list(concepts))
+    _backend(root).save_concepts(subject, list(concepts))
 
 
 def merge_concepts(subject: str, new: Iterable[Concept], *, root=None) -> list[Concept]:
     """Add/replace concepts by id, preserving existing ones. Returns the merged list."""
-    by_id = {c.id: c for c in load_concepts(subject, root=root)}
+    backend = _backend(root)
+    by_id = {c.id: c for c in backend.load_concepts(subject)}
     for c in new:
         by_id[c.id] = c
     merged = list(by_id.values())
-    save_concepts(subject, merged, root=root)
+    backend.save_concepts(subject, merged)
     return merged
 
 
 def load_items(subject: str, *, root=None) -> list[Item]:
-    raw = _read_json(_subject_path("items", subject, root=root)) or []
-    return [Item.model_validate(i) for i in raw]
+    return _backend(root).load_items(subject)
 
 
 def save_items(subject: str, items: Iterable[Item], *, root=None) -> None:
-    _write_json(_subject_path("items", subject, root=root), _dump_list(items))
+    _backend(root).save_items(subject, list(items))
 
 
 def add_items(subject: str, new: Iterable[Item], *, root=None) -> list[Item]:
     """Append items to the bank (ids are unique ULIDs). Returns the full bank."""
-    existing = load_items(subject, root=root)
-    by_id = {i.id: i for i in existing}
+    backend = _backend(root)
+    by_id = {i.id: i for i in backend.load_items(subject)}
     for i in new:
         by_id[i.id] = i
     merged = list(by_id.values())
-    save_items(subject, merged, root=root)
+    backend.save_items(subject, merged)
     return merged
 
 
 def load_materials(subject: str, *, root=None) -> list[Material]:
-    raw = _read_json(_subject_path("materials", subject, root=root)) or []
-    return [Material.model_validate(m) for m in raw]
+    return _backend(root).load_materials(subject)
 
 
 def add_material(subject: str, material: Material, *, root=None) -> None:
-    materials = load_materials(subject, root=root)
-    materials.append(material)
-    _write_json(_subject_path("materials", subject, root=root), _dump_list(materials))
+    _backend(root).add_material(subject, material)
 
 
-def save_material_raw(material_id: str, text: str, *, root=None) -> str:
-    """Persist raw ingested text and return its path relative to the knowledge root."""
-    base = paths.knowledge_root(root)
-    path = base / "materials" / "raw" / f"{material_id}.txt"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text, encoding="utf-8")
-    return str(path.relative_to(base))
+def save_material_raw(material_id: str, text: str, *, subject: str, root=None) -> str:
+    """Persist raw ingested text; returns the backend-meaningful raw_ref."""
+    return _backend(root).save_material_raw(subject, material_id, text)
 
 
-# --- learner state --------------------------------------------------------------------
+def load_material_raw(raw_ref: str, *, subject: str, root=None) -> str:
+    return _backend(root).load_material_raw(subject, raw_ref)
 
 
-def _learner_dir(learner_id: str, *, root) -> Path:
-    return paths.knowledge_root(root) / "learner" / learner_id
+# --- learner state (per learner, per subject) -------------------------------------------
 
 
-def load_learner(learner_id: str = DEFAULT_LEARNER, *, root=None) -> LearnerState:
-    raw = _read_json(_learner_dir(learner_id, root=root) / "state.json")
-    if raw is None:
-        return LearnerState(learner_id=learner_id)
-    return LearnerState.model_validate(raw)
+def load_learner(
+    learner_id: str = DEFAULT_LEARNER, *, subject: str, root=None
+) -> LearnerState:
+    return _backend(root).load_learner(learner_id, subject)
 
 
-def save_learner(state: LearnerState, *, root=None) -> None:
-    path = _learner_dir(state.learner_id, root=root) / "state.json"
-    _write_json(path, state.model_dump(mode="json"))
+def save_learner(state: LearnerState, *, subject: str, root=None) -> None:
+    _backend(root).save_learner(state.learner_id, subject, state)
 
 
-# --- active diagnostic cycle (a working dict; modeled in diagnostic.py) ----------------
+# --- working docs (active diagnostic, answers-in-progress, session, plan one-pager) ------
 
 
-def save_diagnostic(learner_id: str, diagnostic: dict, *, root=None) -> None:
-    _write_json(_learner_dir(learner_id, root=root) / "diagnostic.json", diagnostic)
+def get_doc(learner_id: str, subject: str, name: str, *, root=None) -> Doc | None:
+    return _backend(root).get_doc(learner_id, subject, name)
 
 
-def load_diagnostic(learner_id: str = DEFAULT_LEARNER, *, root=None) -> dict | None:
-    return _read_json(_learner_dir(learner_id, root=root) / "diagnostic.json")
+def put_doc(learner_id: str, subject: str, name: str, payload: Doc, *, root=None) -> None:
+    _backend(root).put_doc(learner_id, subject, name, payload)
 
 
-def learner_file(learner_id: str, name: str, *, root=None) -> Path:
-    """Path to an auxiliary learner file (e.g. an editable answers template)."""
-    return _learner_dir(learner_id, root=root) / name
+def delete_doc(learner_id: str, subject: str, name: str, *, root=None) -> None:
+    _backend(root).delete_doc(learner_id, subject, name)
 
 
-# --- proposals inbox (Phase 5; human-gated, Track B) ----------------------------------
+def doc_path(learner_id: str, subject: str, name: str, *, root=None) -> Path | None:
+    """The on-disk path of a working doc, when the backend has one (local only).
+
+    CLI flows print this so the user can edit the file; DB-backed modes return None and
+    interaction happens in the web UI instead.
+    """
+    backend = _backend(root)
+    getter = getattr(backend, "doc_path", None)
+    return getter(learner_id, subject, name) if getter else None
+
+
+# --- active diagnostic cycle (a working doc; modeled in diagnostic.py) -------------------
+
+
+def save_diagnostic(learner_id: str, diagnostic: dict, *, subject: str, root=None) -> None:
+    put_doc(learner_id, subject, DIAGNOSTIC_DOC, diagnostic, root=root)
+
+
+def load_diagnostic(
+    learner_id: str = DEFAULT_LEARNER, *, subject: str, root=None
+) -> dict | None:
+    doc = get_doc(learner_id, subject, DIAGNOSTIC_DOC, root=root)
+    return doc if isinstance(doc, dict) else None
+
+
+# --- proposals inbox (Phase 5; product artifact: always local, human-gated) --------------
 
 
 def _proposals_path(root) -> Path:
@@ -165,9 +182,15 @@ def _proposals_path(root) -> Path:
 
 
 def load_proposals(*, root=None) -> list[Proposal]:
-    raw = _read_json(_proposals_path(root)) or []
+    path = _proposals_path(root)
+    if not path.exists():
+        return []
+    raw = json.loads(path.read_text(encoding="utf-8"))
     return [Proposal.model_validate(p) for p in raw]
 
 
 def save_proposals(proposals: Iterable[Proposal], *, root=None) -> None:
-    _write_json(_proposals_path(root), _dump_list(proposals))
+    path = _proposals_path(root)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    data = [p.model_dump(mode="json") for p in proposals]
+    path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")

@@ -104,7 +104,7 @@ def test_next_batch_composes_when_open(tmp_path, fake_client):
          for _ in range(6)],
         root=tmp_path,
     )
-    store.save_learner(_state([_gap(concept.id, 0.5)]), root=tmp_path)
+    store.save_learner(_state([_gap(concept.id, 0.5)]), subject="finance", root=tmp_path)
 
     result = sampling.next_batch("finance", root=tmp_path, client=fake_client(outputs=[]))
     assert result["composed"] is True
@@ -115,7 +115,7 @@ def test_next_batch_composes_when_open(tmp_path, fake_client):
 def test_next_batch_stops_and_does_not_compose(tmp_path, fake_client):
     _heur(tmp_path)
     store.save_concepts("finance", [Concept(id="c1", subject="finance", name="C1")], root=tmp_path)
-    store.save_learner(_state([_gap("c1", 0.95)]), root=tmp_path)
+    store.save_learner(_state([_gap("c1", 0.95)]), subject="finance", root=tmp_path)
     result = sampling.next_batch("finance", root=tmp_path, client=fake_client(outputs=[]))
     assert result["composed"] is False
     assert result["status"]["stop"] is True
