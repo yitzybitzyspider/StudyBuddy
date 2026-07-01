@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %} — Edit question{% endblock %}
+{% block content %}
+<h1>Edit question</h1>
+<p class="muted">
+  <span class="badge {{ 'green' if item.provenance.origin.value == 'retrieved' else 'blue' }}">{{ item.provenance.origin.value }}</span>
+  seen {{ item.calibration.times_seen }}×
+  {% if item.calibration.correct_rate is not none %} · {{ (item.calibration.correct_rate * 100) | round | int }}% correct{% endif %}
+  {% if item.calibration.observed_difficulty is not none %} · observed difficulty {{ item.calibration.observed_difficulty | round(2) }}{% endif %}
+</p>
+
+<form method="post" class="card" style="max-width:640px">
+  <label>Question <textarea name="stem" rows="3" required>{{ item.stem }}</textarea></label>
+  <label>Format
+    <select name="format">
+      {% for f in ['mc','numeric','short','essay','application'] %}
+      <option value="{{ f }}" {% if item.format.value == f %}selected{% endif %}>{{ f }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label>Options <span class="muted">(one per line; leave empty for non-mc)</span>
+    <textarea name="options" rows="4">{{ (item.options or []) | join('\n') }}</textarea></label>
+  <label>Answer key <input name="answer_key" value="{{ item.answer_key }}" required></label>
+  <label>Rationale <textarea name="rationale" rows="2">{{ item.rationale or '' }}</textarea></label>
+  <label>Topics
+    <select name="concept_ids" multiple size="5">
+      {% for cid, n in names.items() | sort(attribute='1') %}
+      <option value="{{ cid }}" {% if cid in item.concept_ids %}selected{% endif %}>{{ n }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <div style="display:flex; gap:10px; margin-top:12px">
+    <button type="submit" class="btn">Save changes</button>
+    <a class="button" href="{{ url_for('questions_view', subject=subject) }}">Cancel</a>
+  </div>
+</form>
+{% endblock %}

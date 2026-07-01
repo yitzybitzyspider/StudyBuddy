@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %} — Questions{% endblock %}
+{% block content %}
+<h1>Question bank — {{ subject | replace('-', ' ') | title }}</h1>
+<p class="muted">Every question is editable. Origin shows where it came from; times-seen and
+correct-rate accrue as you practice (they calibrate difficulty automatically).</p>
+
+<form method="get" class="steer">
+  <select name="topic" onchange="this.form.submit()" style="margin:0">
+    <option value="">All topics</option>
+    {% for cid, n in names.items() | sort(attribute='1') %}
+    <option value="{{ cid }}" {% if topic == cid %}selected{% endif %}>{{ n }}</option>
+    {% endfor %}
+  </select>
+  <select name="format" onchange="this.form.submit()" style="margin:0">
+    <option value="">All formats</option>
+    {% for f in ['mc','numeric','short','essay','application'] %}
+    <option value="{{ f }}" {% if fmt == f %}selected{% endif %}>{{ f }}</option>
+    {% endfor %}
+  </select>
+  <select name="origin" onchange="this.form.submit()" style="margin:0">
+    <option value="">All origins</option>
+    {% for o in ['retrieved','adapted','generated'] %}
+    <option value="{{ o }}" {% if origin == o %}selected{% endif %}>{{ o }}</option>
+    {% endfor %}
+  </select>
+  <span class="muted">{{ items | length }} question(s)</span>
+</form>
+
+{% if items %}
+<table class="table">
+  <thead><tr><th>Question</th><th>Topic</th><th>Format</th><th>Origin</th><th>Seen</th><th>Correct</th><th></th></tr></thead>
+  <tbody>
+    {% for i in items %}
+    <tr>
+      <td><a href="{{ url_for('question_edit_view', subject=subject, iid=i.id) }}">{{ i.stem[:70] }}{% if i.stem|length > 70 %}…{% endif %}</a></td>
+      <td class="muted">{{ names.get(i.concept_ids[0], '—') if i.concept_ids else '—' }}</td>
+      <td><span class="badge gray">{{ i.format.value }}</span></td>
+      <td><span class="badge {{ 'green' if i.provenance.origin.value == 'retrieved' else 'blue' }}">{{ i.provenance.origin.value }}</span></td>
+      <td>{{ i.calibration.times_seen }}</td>
+      <td>{{ (i.calibration.correct_rate * 100) | round | int ~ '%' if i.calibration.correct_rate is not none else '—' }}</td>
+      <td>
+        <form method="post" action="{{ url_for('question_delete_view', subject=subject, iid=i.id) }}"
+              onsubmit="return confirm('Delete this question?')">
+          <button type="submit" class="btn small danger">Delete</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="muted">No questions match. Upload material or add one below.</p>
+{% endif %}
+
+<h2>Add a question</h2>
+<form method="post" action="{{ url_for('question_add_view', subject=subject) }}" class="card" style="max-width:620px">
+  <label>Question <textarea name="stem" rows="2" required></textarea></label>
+  <label>Format
+    <select name="format">
+      {% for f in ['mc','numeric','short','essay','application'] %}<option value="{{ f }}">{{ f }}</option>{% endfor %}
+    </select>
+  </label>
+  <label>Options <span class="muted">(mc only — one per line)</span>
+    <textarea name="options" rows="3"></textarea></label>
+  <label>Answer key <input name="answer_key" required></label>
+  <label>Topics
+    <select name="concept_ids" multiple size="4">
+      {% for cid, n in names.items() | sort(attribute='1') %}<option value="{{ cid }}">{{ n }}</option>{% endfor %}
+    </select>
+  </label>
+  <button type="submit">Add question →</button>
+</form>
+{% endblock %}

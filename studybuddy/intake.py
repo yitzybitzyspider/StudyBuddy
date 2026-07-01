@@ -51,8 +51,8 @@ def ingest_answers(
             raise ValueError("provide answers or answers_path")
         answers = json.loads(Path(answers_path).read_text(encoding="utf-8"))
     confidence = {
-        store.concept_id(name): float(value)
-        for name, value in (answers.get("per_topic_confidence") or {}).items()
+        (key if key.startswith("concept_") else store.concept_id(key)): float(value)
+        for key, value in (answers.get("per_topic_confidence") or {}).items()
         if value is not None
     }
     intake = Intake(

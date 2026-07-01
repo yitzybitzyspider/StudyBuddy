@@ -1,47 +1,49 @@
 {% extends "base.html" %}
+{% block title %} — Intake{% endblock %}
 {% block content %}
-<h1>2 · Intake — {{ subject }}</h1>
-{% if added_concepts %}<p class="ok">Ingested — <b>{{ added_concepts }}</b> topics and <b>{{ added_items }}</b> questions now in this subject.</p>{% endif %}
+<h1>Intake — {{ subject | replace('-', ' ') | title }}</h1>
+{% if added_concepts %}<p class="ok">Ingested — <b>{{ added_concepts }}</b> topics and <b>{{ added_items }}</b> questions now in this course.</p>{% endif %}
+{% if current %}<p class="muted">Already set — edit anything below and save; the plan adapts.</p>
+{% else %}<p class="muted">A short, smart intake — answer what's useful, the rest is inferred. Editable anytime.</p>{% endif %}
+
 {% if rows %}
-<details class="card" open>
+<details class="card" {% if added_concepts %}open{% endif %}>
   <summary><b>{{ rows|length }} topics extracted from your material</b> — rate your confidence below</summary>
   <ul class="tree">
     {% for depth, name in rows %}<li class="d{{ depth }}">{{ name }}</li>{% endfor %}
   </ul>
   <div class="steer">
-    <a class="button" href="{{ url_for('ingest_view', subject=subject) }}">+ Add more material</a>
-    <form method="post" action="{{ url_for('harvest_web_view', subject=subject) }}">
-      <button type="submit">Find more questions on the web{% if not offline %} (uses API){% endif %}</button>
-    </form>
+    <a class="button" href="{{ url_for('materials_view', subject=subject) }}">+ Add more material</a>
   </div>
 </details>
 {% else %}
-<p class="muted">No topics yet. <a href="{{ url_for('ingest_view', subject=subject) }}">Ingest material first →</a></p>
+<p class="muted">No topics yet. <a href="{{ url_for('materials_view', subject=subject) }}">Upload material first →</a></p>
 {% endif %}
-<p class="muted">A short, smart intake — answer what's useful, the rest is inferred.</p>
-<form method="post" class="card">
-  <label>Exam format <input name="exam_format" placeholder="e.g. closed-book, 2 hours, mixed"></label>
-  <label>Total study time (hours) <input name="total_study_time_hours" type="number" step="any"></label>
-  <label>Daily availability (hours) <input name="daily_availability_hours" type="number" step="any"></label>
-  <label>Rough baseline <input name="baseline" placeholder="e.g. took intro stats a while ago"></label>
+
+<form method="post" class="card" style="max-width:560px">
+  <label>Exam format <input name="exam_format" value="{{ current.exam_format or '' if current else '' }}" placeholder="e.g. closed-book, 2 hours, mixed"></label>
+  <label>Total study time (hours) <input name="total_study_time_hours" type="number" step="any" value="{{ current.total_study_time or '' if current else '' }}"></label>
+  <label>Daily availability (hours) <input name="daily_availability_hours" type="number" step="any" value="{{ current.daily_availability or '' if current else '' }}"></label>
+  <label>Rough baseline <input name="baseline" value="{{ current.baseline or '' if current else '' }}" placeholder="e.g. took intro stats a while ago"></label>
   {% if concepts %}
-  <fieldset>
+  <fieldset style="border:1px solid var(--border); border-radius:8px; padding:10px 14px">
     <legend>How confident are you per topic? <span class="muted">(optional)</span></legend>
-    {% for c in concepts %}
+    {% for c in concepts | sort(attribute='name') %}
+    {% set cur = current.per_topic_confidence.get(c.id) if current else none %}
     <div class="conf-row">
       <span>{{ c.name }}</span>
       <select name="conf_{{ c.id }}">
-        <option value="unrated">—</option>
-        <option value="0.1">very low</option>
-        <option value="0.3">low</option>
-        <option value="0.5">medium</option>
-        <option value="0.7">high</option>
-        <option value="0.9">very high</option>
+        <option value="unrated" {% if cur is none %}selected{% endif %}>—</option>
+        <option value="0.1" {% if cur == 0.1 %}selected{% endif %}>very low</option>
+        <option value="0.3" {% if cur == 0.3 %}selected{% endif %}>low</option>
+        <option value="0.5" {% if cur == 0.5 %}selected{% endif %}>medium</option>
+        <option value="0.7" {% if cur == 0.7 %}selected{% endif %}>high</option>
+        <option value="0.9" {% if cur == 0.9 %}selected{% endif %}>very high</option>
       </select>
     </div>
     {% endfor %}
   </fieldset>
   {% endif %}
-  <button type="submit">Save intake →</button>
+  <button type="submit" style="margin-top:14px">Save intake →</button>
 </form>
 {% endblock %}

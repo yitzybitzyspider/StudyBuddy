@@ -1,21 +1,69 @@
 {% extends "base.html" %}
+{% block title %} — Topics{% endblock %}
 {% block content %}
-<h1>Topics — {{ subject }}</h1>
-{% if summary %}<p class="ok">Ingested <b>{{ summary.concepts }}</b> concepts and <b>{{ summary['items'] }}</b> real questions from {{ summary.files | join(', ') }}.</p>{% endif %}
+<h1>Topics — {{ subject | replace('-', ' ') | title }}</h1>
+{% if summary %}<p class="ok">Ingested <b>{{ summary.concepts }}</b> topics and <b>{{ summary['items'] }}</b> real questions from {{ summary.files | join(', ') }}.</p>{% endif %}
 {% if harvest %}<p class="ok">Web harvest ({{ harvest.standardization }} standardization, {{ harvest.searches }} search(es)): added <b>{{ harvest['items'] }}</b> real question(s) to the bank.</p>{% endif %}
-{% if rows %}
-  <ul class="tree">
-    {% for depth, name in rows %}<li class="d{{ depth }}">{{ name }}</li>{% endfor %}
-  </ul>
-  <form method="post" action="{{ url_for('harvest_web_view', subject=subject) }}" class="card">
-    <p class="muted">Pull more real practice questions from the web into the bank{% if not offline %} (spends API budget){% endif %}.</p>
-    <button type="submit">Find more questions on the web →</button>
+{% if request.args.get('edges_added') is not none %}
+<p class="ok">Prerequisite map updated — {{ request.args.get('edges_added') }} edge(s) added,
+{{ request.args.get('edges_accrued') }} re-confirmed.</p>
+{% endif %}
+
+{% if concepts %}
+<p class="muted">Everything here is yours to edit — rename, remove, add, and rate your
+confidence per topic (the ratings steer which questions the test picks).</p>
+
+<table class="table">
+  <thead><tr><th>Topic</th><th>Prerequisites</th><th>Your confidence</th><th></th></tr></thead>
+  <tbody>
+    {% for c in concepts | sort(attribute='name') %}
+    <tr>
+      <td>
+        <form method="post" action="{{ url_for('topic_rename_view', subject=subject, cid=c.id) }}" style="display:flex;gap:6px">
+          <input name="name" value="{{ c.name }}" style="max-width:260px;margin:0">
+          <button type="submit" class="btn small secondary">Save</button>
+        </form>
+      </td>
+      <td class="muted">
+        {% for e in c.dependency_edges %}{{ names.get(e.other_concept_id, e.other_concept_id) }}{% if not loop.last %}, {% endif %}{% else %}—{% endfor %}
+      </td>
+      <td>
+        <form method="post" action="{{ url_for('topic_confidence_view', subject=subject, cid=c.id) }}">
+          <select name="confidence" onchange="this.form.submit()" style="margin:0;width:130px">
+            {% set cur = confidence.get(c.id) %}
+            <option value="unrated" {% if cur is none %}selected{% endif %}>— unrated</option>
+            <option value="0.1" {% if cur == 0.1 %}selected{% endif %}>very low</option>
+            <option value="0.3" {% if cur == 0.3 %}selected{% endif %}>low</option>
+            <option value="0.5" {% if cur == 0.5 %}selected{% endif %}>medium</option>
+            <option value="0.7" {% if cur == 0.7 %}selected{% endif %}>high</option>
+            <option value="0.9" {% if cur == 0.9 %}selected{% endif %}>very high</option>
+          </select>
+        </form>
+      </td>
+      <td>
+        <form method="post" action="{{ url_for('topic_delete_view', subject=subject, cid=c.id) }}"
+              onsubmit="return confirm('Remove this topic? Its questions stay but lose the tag.')">
+          <button type="submit" class="btn small danger">Remove</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<div class="steer" style="margin-top:18px">
+  <form method="post" action="{{ url_for('topic_add_view', subject=subject) }}" style="display:flex;gap:8px">
+    <input name="name" placeholder="Add a topic…" required style="margin:0">
+    <button type="submit" class="btn small">Add</button>
   </form>
-  <form method="post" action="{{ url_for('compose_view', subject=subject) }}" class="card">
-    <label>Diagnostic size <input type="number" name="size" value="6" min="1" max="40"></label>
-    <button type="submit">Compose diagnostic →</button>
+  <form method="post" action="{{ url_for('depmap_view', subject=subject) }}">
+    <button type="submit" class="btn small secondary">Map prerequisites{% if not offline %} (1 Claude call){% endif %}</button>
   </form>
+  <form method="post" action="{{ url_for('harvest_web_view', subject=subject) }}">
+    <button type="submit" class="btn small secondary">Find questions on the web{% if not offline %} (uses API){% endif %}</button>
+  </form>
+</div>
 {% else %}
-  <p class="muted">No topics yet. <a href="{{ url_for('ingest_view', subject=subject) }}">Ingest material first</a>.</p>
+<p class="muted">No topics yet. <a href="{{ url_for('materials_view', subject=subject) }}">Upload material first →</a></p>
 {% endif %}
 {% endblock %}

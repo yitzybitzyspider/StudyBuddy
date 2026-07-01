@@ -322,13 +322,23 @@ def create_app(root=None, auth_provider=None) -> Flask:
         return redirect(url_for("intake_view", subject=subject,
                                 added_concepts=summary["concepts"], added_items=summary["items"]))
 
+    def _topics_ctx(subject, **extra):
+        root = _root()
+        concepts = store.load_concepts(subject, root=root)
+        state = store.load_learner(_learner(), subject=subject, root=root)
+        return dict(
+            subject=subject,
+            concepts=concepts,
+            names={c.id: c.name for c in concepts},
+            confidence=(state.intake.per_topic_confidence if state.intake else {}),
+            summary=None,
+            harvest=None,
+            **extra,
+        )
+
     @app.get("/s/<subject>/topics")
     def topics_view(subject):
-        return render_template(
-            "topics.html", subject=subject, summary=None,
-            rows=_topic_rows(store.load_concepts(subject, root=_root())),
-            status=_subject_status(subject),
-        )
+        return render_template("topics.html", **_topics_ctx(subject))
 
     @app.post("/s/<subject>/harvest-web")
     def harvest_web_view(subject):
@@ -336,11 +346,150 @@ def create_app(root=None, auth_provider=None) -> Flask:
             result = websearch_mod.web_harvest(subject, root=_root())
         except (ValueError, ClaudeCallError) as e:
             return _err(f"Web harvest failed: {e}", subject)
+        return render_template("topics.html", **_topics_ctx(subject, harvest=result))
+
+    # -- topics editor -------------------------------------------------------------------
+
+    @app.post("/s/<subject>/topics/add")
+    def topic_add_view(subject):
+        from ..models import Concept
+
+        name = (request.form.get("name") or "").strip()
+        if name:
+            store.merge_concepts(
+                subject,
+                [Concept(id=store.concept_id(name), subject=subject, name=name)],
+                root=_root(),
+            )
+        return redirect(url_for("topics_view", subject=subject))
+
+    @app.post("/s/<subject>/topics/<cid>/rename")
+    def topic_rename_view(subject, cid):
+        name = (request.form.get("name") or "").strip()
+        concepts = store.load_concepts(subject, root=_root())
+        for c in concepts:
+            if c.id == cid and name:
+                c.name = name
+        store.save_concepts(subject, concepts, root=_root())
+        return redirect(url_for("topics_view", subject=subject))
+
+    @app.post("/s/<subject>/topics/<cid>/delete")
+    def topic_delete_view(subject, cid):
+        root = _root()
+        concepts = [c for c in store.load_concepts(subject, root=root) if c.id != cid]
+        for c in concepts:  # drop dangling references
+            if c.parent_id == cid:
+                c.parent_id = None
+            c.dependency_edges = [e for e in c.dependency_edges if e.other_concept_id != cid]
+        store.save_concepts(subject, concepts, root=root)
+        items = store.load_items(subject, root=root)
+        for it in items:
+            it.concept_ids = [x for x in it.concept_ids if x != cid]
+        store.save_items(subject, items, root=root)
+        return redirect(url_for("topics_view", subject=subject))
+
+    @app.post("/s/<subject>/topics/<cid>/confidence")
+    def topic_confidence_view(subject, cid):
+        from ..models import Intake
+
+        v = request.form.get("confidence", "")
+        state = store.load_learner(_learner(), subject=subject, root=_root())
+        if state.intake is None:
+            state.intake = Intake()
+        if v in ("", "unrated"):
+            state.intake.per_topic_confidence.pop(cid, None)
+        else:
+            state.intake.per_topic_confidence[cid] = float(v)
+        store.save_learner(state, subject=subject, root=_root())
+        return redirect(url_for("topics_view", subject=subject))
+
+    @app.post("/s/<subject>/depmap")
+    def depmap_view(subject):
+        from .. import depmap as depmap_mod
+
+        try:
+            result = depmap_mod.build(subject, root=_root())
+        except (ValueError, ClaudeCallError) as e:
+            return _err(f"Prerequisite mapping failed: {e}", subject)
+        return redirect(url_for("topics_view", subject=subject,
+                                edges_added=result["added"], edges_accrued=result["accrued"]))
+
+    # -- questions editor ----------------------------------------------------------------
+
+    @app.get("/s/<subject>/questions")
+    def questions_view(subject):
+        root = _root()
+        items = store.load_items(subject, root=root)
+        names = {c.id: c.name for c in store.load_concepts(subject, root=root)}
+        topic = request.args.get("topic") or ""
+        fmt = request.args.get("format") or ""
+        origin = request.args.get("origin") or ""
+        if topic:
+            items = [i for i in items if topic in i.concept_ids]
+        if fmt:
+            items = [i for i in items if i.format.value == fmt]
+        if origin:
+            items = [i for i in items if i.provenance.origin.value == origin]
         return render_template(
-            "topics.html", subject=subject, summary=None, harvest=result,
-            rows=_topic_rows(store.load_concepts(subject, root=_root())),
-            status=_subject_status(subject),
+            "questions.html", subject=subject, items=items, names=names,
+            topic=topic, fmt=fmt, origin=origin,
         )
+
+    @app.route("/s/<subject>/questions/<iid>/edit", methods=["GET", "POST"])
+    def question_edit_view(subject, iid):
+        from ..models import ItemFormat
+
+        root = _root()
+        items = store.load_items(subject, root=root)
+        item = next((i for i in items if i.id == iid), None)
+        if item is None:
+            return _err("Question not found.", subject)
+        names = {c.id: c.name for c in store.load_concepts(subject, root=root)}
+        if request.method == "GET":
+            return render_template(
+                "question_edit.html", subject=subject, item=item, names=names
+            )
+        item.stem = request.form.get("stem") or item.stem
+        item.format = ItemFormat(request.form.get("format") or item.format.value)
+        options = [o.strip() for o in (request.form.get("options") or "").splitlines() if o.strip()]
+        item.options = options or None
+        item.answer_key = request.form.get("answer_key") or item.answer_key
+        item.rationale = request.form.get("rationale") or None
+        chosen = request.form.getlist("concept_ids")
+        if chosen:
+            item.concept_ids = chosen
+        store.save_items(subject, items, root=root)
+        return redirect(url_for("questions_view", subject=subject))
+
+    @app.post("/s/<subject>/questions/<iid>/delete")
+    def question_delete_view(subject, iid):
+        root = _root()
+        items = [i for i in store.load_items(subject, root=root) if i.id != iid]
+        store.save_items(subject, items, root=root)
+        return redirect(url_for("questions_view", subject=subject))
+
+    @app.post("/s/<subject>/questions/add")
+    def question_add_view(subject):
+        from .. import ids as ids_mod
+        from ..models import Item, ItemFormat, Provenance, ProvenanceOrigin
+
+        root = _root()
+        stem = (request.form.get("stem") or "").strip()
+        answer = (request.form.get("answer_key") or "").strip()
+        if not stem or not answer:
+            return redirect(url_for("questions_view", subject=subject))
+        options = [o.strip() for o in (request.form.get("options") or "").splitlines() if o.strip()]
+        item = Item(
+            id=ids_mod.ulid_id("item"),
+            concept_ids=request.form.getlist("concept_ids"),
+            format=ItemFormat(request.form.get("format") or "short"),
+            stem=stem,
+            options=options or None,
+            answer_key=answer,
+            provenance=Provenance(origin=ProvenanceOrigin.retrieved),  # user-supplied real question
+        )
+        store.add_items(subject, [item], root=root)
+        return redirect(url_for("questions_view", subject=subject))
 
     # -- Stage 3: intake ---------------------------------------------------------------
 
@@ -348,9 +497,11 @@ def create_app(root=None, auth_provider=None) -> Flask:
     def intake_view(subject):
         concepts = store.load_concepts(subject, root=_root())
         if request.method == "GET":
+            current = store.load_learner(_learner(), subject=subject, root=_root()).intake
             return render_template(
                 "intake.html", subject=subject, concepts=concepts,
                 rows=_topic_rows(concepts), status=_subject_status(subject),
+                current=current,
                 added_concepts=request.args.get("added_concepts"),
                 added_items=request.args.get("added_items"),
             )
@@ -358,7 +509,7 @@ def create_app(root=None, auth_provider=None) -> Flask:
         for c in concepts:
             v = request.form.get(f"conf_{c.id}", "")
             if v not in ("", "unrated"):
-                confidence[c.name] = float(v)
+                confidence[c.id] = float(v)  # keyed by id: rename-safe
         answers = {
             "subject": subject,
             "exam_format": request.form.get("exam_format", ""),
