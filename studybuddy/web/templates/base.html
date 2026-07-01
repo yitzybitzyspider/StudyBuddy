@@ -24,6 +24,9 @@
     <a class="nav {% if request.endpoint == 'study_view' %}active{% endif %}" href="{{ url_for('study_view', subject=subject) }}">Study</a>
     {% endif %}
     <div class="spacer"></div>
+    {% if is_admin() %}
+    <a class="nav {% if request.endpoint == 'admin_view' %}active{% endif %}" href="{{ url_for('admin_view') }}">Admin</a>
+    {% endif %}
     <div class="foot">
       {% if offline %}<span class="badge offline">offline</span>{% else %}<span class="badge live">live</span>{% endif %}
       {% if auth_enabled and session.get('sb') %}

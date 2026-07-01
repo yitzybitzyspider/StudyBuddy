@@ -186,3 +186,26 @@ def test_healthz_is_open_even_in_platform_mode(tmp_path, monkeypatch):
     r = c.get("/healthz")
     assert r.status_code == 200 and r.get_json() == {"ok": True}
     assert c.get("/").status_code == 302  # everything else still gated
+
+
+def test_admin_gated_by_email_in_platform_mode(tmp_path, monkeypatch):
+    monkeypatch.setenv("STUDYBUDDY_OFFLINE", "1")
+    monkeypatch.setenv("ADMIN_EMAILS", "owner@x.com")
+    from studybuddy.web import create_app
+
+    c = create_app(root=tmp_path, auth_provider=FakeAuth()).test_client()
+    # ordinary user: admin hidden (404)
+    c.post("/signup", data={"email": "user@x.com", "password": "secret1"})
+    assert c.get("/admin").status_code == 404
+    c.post("/logout")
+    # the owner: admin visible
+    c.post("/signup", data={"email": "owner@x.com", "password": "secret1"})
+    assert c.get("/admin").status_code == 200
+
+
+def test_admin_open_in_local_mode(tmp_path, monkeypatch):
+    monkeypatch.setenv("STUDYBUDDY_OFFLINE", "1")
+    from studybuddy.web import create_app
+
+    c = create_app(root=tmp_path).test_client()  # NoopAuth: you are the owner
+    assert c.get("/admin").status_code == 200

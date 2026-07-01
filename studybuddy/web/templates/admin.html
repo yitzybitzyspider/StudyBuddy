@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %} — Admin{% endblock %}
+{% block crumb %}Admin{% endblock %}
+{% block content %}
+<h1>Admin — the human gate</h1>
+<p class="muted">The system proposes evidence-backed changes to its own foundations; you accept
+or reject. Accepts that violate a design principle are blocked by the philosophy gate even
+here. Rejected proposals stay on record to learn from.</p>
+{% if note %}<p class="ok">{{ note }}</p>{% endif %}
+
+<div class="steer">
+  <form method="post" action="{{ url_for('admin_generate_view') }}">
+    <button type="submit" class="btn small">Generate proposals from accrued evidence</button>
+  </form>
+</div>
+
+<h2>Proposals</h2>
+{% for p in proposals | reverse %}
+<div class="card tight">
+  <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap">
+    <span class="badge {{ 'gray' if p.status.value == 'open' else ('green' if p.status.value == 'accepted' else 'red') }}">{{ p.status.value }}</span>
+    <span class="badge blue">{{ p.kind.value }}</span>
+    <b>{{ p.summary }}</b>
+  </div>
+  {% if p.decision_note %}<p class="muted" style="margin:6px 0 0">{{ p.decision_note }}</p>{% endif %}
+  {% if p.status.value == 'open' %}
+  <div class="steer" style="margin:10px 0 2px">
+    <form method="post" action="{{ url_for('admin_decide_view', pid=p.id, verb='accept') }}">
+      <button type="submit" class="btn small">Accept &amp; apply</button>
+    </form>
+    <form method="post" action="{{ url_for('admin_decide_view', pid=p.id, verb='reject') }}" style="display:flex;gap:6px">
+      <input name="note" placeholder="why? (optional)" style="margin:0;max-width:220px">
+      <button type="submit" class="btn small danger">Reject</button>
+    </form>
+  </div>
+  {% endif %}
+</div>
+{% else %}
+<p class="muted">Inbox empty — generate proposals once real usage has accrued evidence.</p>
+{% endfor %}
+
+<h2>Recent Claude calls (run log)</h2>
+{% if runlog %}
+<table class="table">
+  <thead><tr><th>When</th><th>Phase</th><th>Template</th><th>Status</th><th>User</th></tr></thead>
+  <tbody>
+    {% for e in runlog %}
+    <tr>
+      <td class="muted">{{ e.ts.strftime('%b %d %H:%M') }}</td>
+      <td>{{ e.phase }}</td>
+      <td class="muted">{{ e.template_id }}/{{ e.template_version }}</td>
+      <td><span class="badge {{ 'green' if e.validation_status.value == 'valid' else 'red' }}">{{ e.validation_status.value }}</span></td>
+      <td class="muted">{{ (e.user_id or '—')[:12] }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="muted">(run log is empty)</p>
+{% endif %}
+{% endblock %}

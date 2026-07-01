@@ -19,6 +19,7 @@ from flask import (
     redirect,
     render_template,
     request,
+    session as flask_session,
     url_for,
 )
 
@@ -650,6 +651,58 @@ def create_app(root=None, auth_provider=None) -> Flask:
             "session.html", subject=subject, questions=info["session"]["questions"],
             due_count=info["due_count"], new_count=info["new_count"],
         )
+
+    # -- admin: proposals inbox + run log (the human gate, Phase 5) -----------------------
+
+    def _is_admin() -> bool:
+        provider = app.extensions.get("studybuddy_auth")
+        if provider is None or not provider.enabled:
+            return True  # local single-user mode: you are the owner
+        admins = {e.strip().lower() for e in os.environ.get("ADMIN_EMAILS", "").split(",") if e.strip()}
+        sb = flask_session.get("sb") or {}
+        return bool(admins) and (sb.get("email") or "").lower() in admins
+
+    app.jinja_env.globals["is_admin"] = _is_admin
+
+    @app.get("/admin")
+    def admin_view():
+        from .. import proposals as proposals_mod
+        from ..runlog import RunLog
+
+        if not _is_admin():
+            abort(404)
+        props = store.load_proposals(root=_root())
+        entries = RunLog(_root()).read_all()[-40:]
+        entries.reverse()
+        return render_template(
+            "admin.html", proposals=props, runlog=entries,
+            note=request.args.get("note"),
+        )
+
+    @app.post("/admin/proposals/generate")
+    def admin_generate_view():
+        from .. import proposals as proposals_mod
+
+        if not _is_admin():
+            abort(404)
+        new = proposals_mod.generate(root=_root())
+        return redirect(url_for("admin_view", note=f"generated {len(new)} proposal(s)"))
+
+    @app.post("/admin/proposals/<pid>/<verb>")
+    def admin_decide_view(pid, verb):
+        from .. import proposals as proposals_mod
+
+        if not _is_admin():
+            abort(404)
+        if verb not in ("accept", "reject"):
+            abort(404)
+        try:
+            p = proposals_mod.decide(
+                pid, verb == "accept", note=request.form.get("note") or None, root=_root()
+            )
+        except proposals_mod.ProposalError as e:
+            return redirect(url_for("admin_view", note=str(e)))
+        return redirect(url_for("admin_view", note=f"{p.status.value}: {p.summary[:60]}"))
 
     @app.post("/s/<subject>/steer")
     def steer_view(subject):

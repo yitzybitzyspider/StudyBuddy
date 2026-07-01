@@ -189,6 +189,24 @@ diagnostic, administer, diagnose, plan, steer) and adds no pipeline logic. Optio
 | Q1 | One model knob | Every Claude call's model comes from `STUDYBUDDY_MODEL` (wrapper default `claude-opus-4-8`). For cheap testing, set it to `claude-haiku-4-5-20251001`. Per-call override stays available (`run-call --model`, the `model=` arg). | spec §7 (token-aware via scoped calls, not budgeting); operational |
 | Q2 | Web search keeps a capable model | The server-side `web_search` tool only runs on Opus 4.6+, so `harvest_web` overrides the cheap default via `STUDYBUDDY_WEBSEARCH_MODEL` (default `claude-opus-4-6`) for that one opt-in call; the rest of the pipeline still runs on the cheap `STUDYBUDDY_MODEL`. This is a testing convenience — final model policy is deferred. | Loop 15 (web search needs Opus 4.6+); cost control |
 
+## 2026-07-01 — Platform (user-directed scope change)
+
+### R. Multi-user platform: Supabase + hosted UI
+
+The owner **directed** (he is the human gate over the out-of-scope list) that StudyBuddy
+become a small multi-user platform featured on inleto.com. This overrides the original
+"no multi-user, no accounts, no DB" scope — recorded here, not silently.
+
+| # | Decision | Choice | Grounding |
+|---|----------|--------|-----------|
+| R1 | The boundary | Only per-user **data** moves to Supabase (subjects, materials + raw text, concepts, items, learner state, working docs). The knowledge-layer **product** — prompt registry, heuristics, run log, proposals, design docs — stays as git files on the server. The app remains rebuildable from git. | philosophy §2; user direction |
+| R2 | Dual backend | `studybuddy/storage/` protocol with `LocalBackend` (default; files; CLI + all tests stay offline) and `SupabaseBackend` (`STUDYBUDDY_BACKEND=supabase` + a signed-in user context). `store.py` stays the facade; engine call sites unchanged. | NFR-2 (learner_id kept multi-user open) |
+| R3 | Isolation is enforced by the database | Supabase Auth (email+password) → the user's JWT rides every PostgREST call → owner-only RLS (`using` + `with check`) on every table. Verified live with two users incl. a spoofed-insert rejection. `user_id` also stamped on writes and into RunLogEntry. | security; NFR-2 |
+| R4 | Per-(user, subject) learner state | Fixed the global-learner-state clobbering (two subjects overwrote each other's plan/gaps). Local layout `learner/<lid>/<subject>/…` with legacy fallback; DB PK `(user_id, subject_id)`. | correctness |
+| R5 | Working docs replace `learner_file` paths | `get/put/delete_doc(learner, subject, name)` — files locally, `learner_docs` rows in the DB. `administer`/`record_session`/`ingest_answers` accept in-memory answers; `plan.compose` returns markdown text. | R2 (a DB backend cannot return a Path) |
+| R6 | Hosting | App: Render free tier via `render.yaml` (gunicorn factory, `/healthz`, ProxyFix, FLASK_SECRET_KEY required in platform mode) at app.inleto.com; landing page: `site/` via GitHub Pages at inleto.com (the Pages workflow publishes `site/` only, never the source tree). `main` is the deployed branch. | user direction |
+| R7 | Platform UI | Server-rendered Flask + one hand-written CSS design system + dependency-free player JS (no build step, no CDN). Testing-platform UX: one-question player with per-question timing (feeds the speed heuristic), review-before-submit, score-ring results, gap report with upstream callouts, visible adaptive loop, editors for topics/questions/intake/materials, admin gate for proposals + run log (`ADMIN_EMAILS`). | user brief: clarity, cleanliness, smart flow, everything editable |
+
 ### D. Deferred (not built in Phase 0, per the build plan)
 
 All five phases of the build plan are now built. Out of scope entirely (unchanged): multi-user,
