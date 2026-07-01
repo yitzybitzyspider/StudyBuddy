@@ -166,3 +166,23 @@ def test_supabase_auth_provider_translation():
     assert provider.refresh("rt")["access_token"] == "at"
     with pytest.raises(AuthError):
         provider.refresh("stale")
+
+
+def test_platform_mode_requires_secret_key(tmp_path, monkeypatch):
+    """Multi-worker servers need a stable session key; refuse to boot without one."""
+    monkeypatch.setenv("STUDYBUDDY_BACKEND", "supabase")
+    monkeypatch.delenv("FLASK_SECRET_KEY", raising=False)
+    from studybuddy.web import create_app
+
+    with pytest.raises(RuntimeError, match="FLASK_SECRET_KEY"):
+        create_app(root=tmp_path, auth_provider=FakeAuth())
+
+
+def test_healthz_is_open_even_in_platform_mode(tmp_path, monkeypatch):
+    monkeypatch.setenv("STUDYBUDDY_OFFLINE", "1")
+    from studybuddy.web import create_app
+
+    c = create_app(root=tmp_path, auth_provider=FakeAuth()).test_client()
+    r = c.get("/healthz")
+    assert r.status_code == 200 and r.get_json() == {"ok": True}
+    assert c.get("/").status_code == 302  # everything else still gated

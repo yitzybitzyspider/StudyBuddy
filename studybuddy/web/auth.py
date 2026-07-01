@@ -151,7 +151,7 @@ def logout():
 
 # --- request wiring ------------------------------------------------------------------------
 
-_OPEN_ENDPOINTS = {"auth.login", "auth.signup", "static"}
+_OPEN_ENDPOINTS = {"auth.login", "auth.signup", "static", "healthz"}
 
 
 def install(app, provider) -> None:

@@ -1,0 +1,27 @@
+# Render blueprint: deploy StudyBuddy's platform mode as a web service.
+# Connect the repo in the Render dashboard ("New +" -> "Blueprint") and it reads this file.
+# Secrets (sync: false) are entered once in the dashboard, never committed.
+services:
+  - type: web
+    name: studybuddy
+    runtime: python
+    plan: free
+    branch: claude/claude-file-setup-tb8aar
+    buildCommand: pip install -e ".[platform]"
+    startCommand: gunicorn "studybuddy.web:create_app()" --workers 2 --threads 4 --timeout 180 --bind 0.0.0.0:$PORT
+    healthCheckPath: /healthz
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.7"
+      - key: STUDYBUDDY_BACKEND
+        value: supabase
+      - key: STUDYBUDDY_MODEL
+        value: claude-haiku-4-5-20251001   # cheap testing config; revisit before launch
+      - key: SUPABASE_URL
+        value: https://ocktcaxmxlwgdhhdefkf.supabase.co
+      - key: SUPABASE_ANON_KEY
+        sync: false   # paste in the dashboard (Settings -> API -> anon/publishable key)
+      - key: FLASK_SECRET_KEY
+        generateValue: true
+      - key: ANTHROPIC_API_KEY
+        sync: false   # paste a FRESH key in the dashboard; never commit one

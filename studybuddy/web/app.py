@@ -125,10 +125,32 @@ def create_app(root=None, auth_provider=None) -> Flask:
     (resolved / "runs" / "blobs").mkdir(parents=True, exist_ok=True)
     seed.seed_knowledge_layer(root=resolved)  # idempotent
     app.config["SB_ROOT"] = str(resolved)
-    # Signs the session cookie. Set FLASK_SECRET_KEY for stable sessions across restarts
-    # (required in platform mode); local no-auth mode tolerates a per-process key.
-    app.secret_key = os.environ.get("FLASK_SECRET_KEY") or secrets.token_hex(32)
+    # Signs the session cookie. In platform mode a stable key is REQUIRED — multi-worker
+    # servers with per-process random keys would invalidate sessions on every other request.
+    platform_mode = os.environ.get("STUDYBUDDY_BACKEND") == "supabase"
+    secret = os.environ.get("FLASK_SECRET_KEY")
+    if platform_mode and not secret:
+        raise RuntimeError(
+            "platform mode (STUDYBUDDY_BACKEND=supabase) requires FLASK_SECRET_KEY — "
+            "set it to a long random string"
+        )
+    app.secret_key = secret or secrets.token_hex(32)
+    if platform_mode:
+        # Behind a TLS-terminating proxy (Render/Railway/Fly): trust X-Forwarded-* so
+        # url_for/redirects generate https URLs and the client IP is real.
+        from werkzeug.middleware.proxy_fix import ProxyFix
+
+        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+        app.config.update(
+            SESSION_COOKIE_SECURE=True,
+            SESSION_COOKIE_HTTPONLY=True,
+            SESSION_COOKIE_SAMESITE="Lax",
+        )
     app.jinja_env.filters["md"] = _markdown_to_html
+
+    @app.get("/healthz")
+    def healthz():  # host health checks (open endpoint)
+        return {"ok": True}
 
     app.jinja_env.globals["offline"] = bool(os.environ.get("STUDYBUDDY_OFFLINE"))
     provider = auth_provider or auth_mod.default_provider()

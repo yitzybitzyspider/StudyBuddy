@@ -19,7 +19,7 @@ dependencies = [
 dev = ["pytest>=8", "flask>=3"]
 web = ["flask>=3"]
 # The multi-user platform mode: Supabase Postgres (RLS) + Supabase Auth.
-platform = ["flask>=3", "supabase>=2.4,<3"]
+platform = ["flask>=3", "supabase>=2.4,<3", "gunicorn>=22"]
 
 [project.scripts]
 studybuddy = "studybuddy.cli:main"
